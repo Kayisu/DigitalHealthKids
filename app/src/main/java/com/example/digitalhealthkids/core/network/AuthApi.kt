@@ -9,7 +9,7 @@ data class LoginResponse(
     val token: String,
     val refreshToken: String?,
     val childId: String,
-    val deviceId: String = ""
+    val deviceId: String? = null
 )
 
 interface AuthApi {

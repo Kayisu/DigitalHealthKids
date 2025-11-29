@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.digitalhealthkids.core.network.usage.readTodayUsageEvents
 import com.example.digitalhealthkids.ui.home.components.*
 import kotlinx.coroutines.launch
 
@@ -27,41 +26,10 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // ✅ Uygulama açıldığında: usage -> backend, sonra dashboard
-    /*LaunchedEffect(childId, deviceId) {
-        try {
-            val events = readTodayUsageEvents(context) // veya collectTodayUsageEvents(context)
-            if (events.isNotEmpty()) {
-                viewModel.sendUsage(
-                    childId = childId,
-                    deviceId = deviceId,
-                    events = events
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        // usage gönderme denemesinden sonra her hâlükârda dashboard’u çek
-        viewModel.loadDashboard(childId)
-    }*/
-
     LaunchedEffect(childId, deviceId) {
-        try {
-            val events = readTodayUsageEvents(context) // veya collectTodayUsageEvents(context)
-            if (events.isNotEmpty()) {
-                viewModel.sendUsage(
-                    childId = childId,
-                    deviceId = deviceId,
-                    events = events
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        // usage gönderme denemesinden sonra her hâlükârda dashboard’u çek
-        viewModel.loadDashboard(childId)
+        // Tüm süreci (Oku -> Gönder -> Dashboard'u Getir) bu fonksiyon yönetir.
+        viewModel.syncUsageHistory(context, childId, deviceId)
+        viewModel.scheduleBackgroundSync(context)
     }
 
     Scaffold(

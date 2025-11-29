@@ -6,16 +6,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.digitalhealthkids.core.network.usage.UsageApi
-import com.example.digitalhealthkids.core.network.usage.UsageEventDto
 import com.example.digitalhealthkids.core.network.usage.UsageReportRequestDto
-import com.example.digitalhealthkids.core.network.usage.readTodayUsageEvents
+import com.example.digitalhealthkids.core.network.usage.readUsageEventsForRange // <-- İMPORT ETTİK
+import com.example.digitalhealthkids.data.worker.UsageSyncWorker
 import com.example.digitalhealthkids.domain.usage.DashboardData
 import com.example.digitalhealthkids.domain.usage.UsageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltViewModel
@@ -40,33 +46,21 @@ class HomeViewModel @Inject constructor(
         selectedDay = i
     }
 
-    fun loadDashboard(childId: String) {
-        viewModelScope.launch {
-            try {
-                _state.value = State(isLoading = true)
-                val d = usageRepository.getDashboard(childId)
-                _state.value = State(isLoading = false, data = d)
-            } catch (e: Exception) {
-                _state.value = State(isLoading = false, error = e.message)
-            }
-        }
-    }
-
-    // HomeViewModel.kt içine
-    fun syncTodayUsage(
+    // 1. Manuel / İlk Açılış Senkronizasyonu
+    fun syncUsageHistory(
         context: Context,
         childId: String,
         deviceId: String
     ) {
         viewModelScope.launch {
-            try {
-                _state.value = State(isLoading = true)
+            _state.value = State(isLoading = true)
 
-                // 1) Android usage verisini oku
-                val events: List<UsageEventDto> = readTodayUsageEvents(context)
+            // ADIM 1: Veri Göndermeyi Dene
+            try {
+                // Artık UsageReader dosyasında tanımlı, hata vermemeli
+                val events = readUsageEventsForRange(context, 7)
 
                 if (events.isNotEmpty()) {
-                    // 2) Backend’e gönder
                     val body = UsageReportRequestDto(
                         childId = childId,
                         deviceId = deviceId,
@@ -74,33 +68,39 @@ class HomeViewModel @Inject constructor(
                     )
                     usageApi.reportUsage(body)
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Hata olsa da devam et
+            }
 
-                // 3) Dashboard verisini çek
+            // ADIM 2: Dashboard'u Çek
+            try {
                 val d = usageRepository.getDashboard(childId)
                 _state.value = State(isLoading = false, data = d)
-
             } catch (e: Exception) {
                 _state.value = State(isLoading = false, error = e.message)
             }
         }
     }
 
+    // 2. Arka Plan Senkronizasyonunu Başlatma (Schedule)
+    fun scheduleBackgroundSync(context: Context) {
+        val syncRequest = PeriodicWorkRequestBuilder<UsageSyncWorker>(
+            15, TimeUnit.MINUTES
+        )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
 
-    fun sendUsage(childId: String, deviceId: String, events: List<UsageEventDto>) {
-        viewModelScope.launch {
-            try {
-                val body = UsageReportRequestDto(
-                    childId = childId,
-                    deviceId = deviceId,
-                    events = events
-                )
-                val response = usageApi.reportUsage(body)
-                println("Usage gönderildi: $response")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "UsageSyncWork",
+            ExistingPeriodicWorkPolicy.KEEP, // Varsa eskisini koru, tekrar başlatma
+            syncRequest
+        )
     }
 
-
+    // sendUsage fonksiyonunu SİLDİM (Artık gereksiz)
 }

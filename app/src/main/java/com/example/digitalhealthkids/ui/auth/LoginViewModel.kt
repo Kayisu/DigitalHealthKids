@@ -50,8 +50,10 @@ class LoginViewModel @Inject constructor(
             _state.value = current.copy(isLoading = false)
 
             result.onSuccess { resp ->
-                // 🔥 Artık resp.deviceId asla null olmayacak (en kötü "")
-                onSuccess(resp.childId, resp.deviceId)
+                // 🔥 Navigation'ın patlamaması için boş string değil,
+                // dolu bir string veriyoruz.
+                val safeDeviceId = resp.deviceId ?: "unknown_device"
+                onSuccess(resp.childId, safeDeviceId)
             }.onFailure { e ->
                 _state.value = current.copy(
                     error = e.message ?: "Giriş başarısız"
@@ -59,5 +61,7 @@ class LoginViewModel @Inject constructor(
             }
         }
     }
+
+
 }
 

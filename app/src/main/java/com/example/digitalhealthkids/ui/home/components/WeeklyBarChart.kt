@@ -16,7 +16,12 @@ fun WeeklyBarChart(
     selectedDay: Int,
     onDaySelected: (Int) -> Unit
 ) {
-    val max = (values.maxOrNull() ?: 1).toFloat()
+    // 🔥 DÜZELTME BURADA:
+    // Eğer liste boşsa veya max değer 0 ise, böleni en az 1 yapıyoruz.
+    // Böylece 0/0 = NaN hatasından kurtuluyoruz.
+    val maxValueInList = values.maxOrNull() ?: 0
+    val max = if (maxValueInList == 0) 1f else maxValueInList.toFloat()
+
     val labels = listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
 
     Card {
@@ -33,13 +38,18 @@ fun WeeklyBarChart(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
+                // Eğer values listesi 7 günden az gelirse patlamasın diye take/pad yapılabilir
+                // ama şimdilik backend 7 dönüyor varsayıyoruz.
                 values.forEachIndexed { index, value ->
                     val isSelected = index == selectedDay
+
+                    // Oran hesabı
+                    val barHeightRatio = value / max
 
                     Box(
                         modifier = Modifier
                             .width(28.dp)
-                            .fillMaxHeight(value / max)
+                            .fillMaxHeight(barHeightRatio) // Artık burası NaN olamaz
                             .background(
                                 if (isSelected)
                                     MaterialTheme.colorScheme.primary
