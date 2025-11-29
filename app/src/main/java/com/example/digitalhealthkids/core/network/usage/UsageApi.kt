@@ -1,0 +1,21 @@
+package com.example.digitalhealthkids.core.network.usage
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.POST
+import retrofit2.http.Query
+
+
+interface UsageApi {
+
+    @POST("usage/report")
+    suspend fun reportUsage(
+        @Body body: UsageReportRequestDto
+    ): UsageReportResponseDto
+
+    @GET("usage/dashboard")
+    suspend fun getDashboard(
+        @Query("child_id") childId: String
+    ): DashboardDto
+}
+
+
