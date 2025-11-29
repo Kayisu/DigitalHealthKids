@@ -1,7 +1,9 @@
 package com.example.digitalhealthkids.ui.home
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -39,7 +41,7 @@ class HomeViewModel @Inject constructor(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
-    var selectedDay by mutableStateOf(0)
+    var selectedDay by mutableIntStateOf(0)
         private set
 
     fun selectDay(i: Int) {
@@ -47,37 +49,45 @@ class HomeViewModel @Inject constructor(
     }
 
     // 1. Manuel / İlk Açılış Senkronizasyonu
-    fun syncUsageHistory(
-        context: Context,
-        childId: String,
-        deviceId: String
-    ) {
+    fun syncUsageHistory(context: Context, childId: String, deviceId: String) {
         viewModelScope.launch {
             _state.value = State(isLoading = true)
+            Log.d("UsageSync", "🚀 Senkronizasyon başladı. Child: $childId, Device: $deviceId")
 
-            // ADIM 1: Veri Göndermeyi Dene
+            // ADIM 1: Veri Gönderme
             try {
-                // Artık UsageReader dosyasında tanımlı, hata vermemeli
+                // 7 günlük veriyi iste
                 val events = readUsageEventsForRange(context, 7)
+                Log.d("UsageSync", "📦 Android'den okunan ham veri sayısı: ${events.size}")
 
                 if (events.isNotEmpty()) {
+                    events.take(3).forEach { Log.d("UsageSync", "   -> Örnek paket: ${it.appPackage} (${it.totalSeconds} sn)") }
+
                     val body = UsageReportRequestDto(
                         childId = childId,
                         deviceId = deviceId,
                         events = events
                     )
-                    usageApi.reportUsage(body)
+                    Log.d("UsageSync", "📤 Backend'e gönderiliyor...")
+
+                    val response = usageApi.reportUsage(body)
+                    Log.d("UsageSync", "✅ Backend Yanıtı: Status=${response.status}, Inserted=${response.inserted}")
+                } else {
+                    Log.w("UsageSync", "⚠️ Okunacak veri bulunamadı! Liste boş.")
                 }
             } catch (e: Exception) {
+                Log.e("UsageSync", "❌ Veri gönderme hatası: ${e.message}")
                 e.printStackTrace()
-                // Hata olsa da devam et
             }
 
-            // ADIM 2: Dashboard'u Çek
+            // ADIM 2: Dashboard Çekme
             try {
+                Log.d("UsageSync", "📥 Dashboard verisi çekiliyor...")
                 val d = usageRepository.getDashboard(childId)
+                Log.d("UsageSync", "📊 Dashboard alındı. Toplam süre: ${d.todayTotalMinutes} dk")
                 _state.value = State(isLoading = false, data = d)
             } catch (e: Exception) {
+                Log.e("UsageSync", "❌ Dashboard çekme hatası: ${e.message}")
                 _state.value = State(isLoading = false, error = e.message)
             }
         }
@@ -101,6 +111,4 @@ class HomeViewModel @Inject constructor(
             syncRequest
         )
     }
-
-    // sendUsage fonksiyonunu SİLDİM (Artık gereksiz)
 }

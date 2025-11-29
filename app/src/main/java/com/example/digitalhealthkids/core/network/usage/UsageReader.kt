@@ -92,7 +92,7 @@ fun readUsageEventsSince(context: Context, lastSyncTimestamp: Long): List<UsageE
     // Performans için "TotalTime > 0" olanları filtreliyoruz.
 
     return stats
-        .filter { it.totalTimeInForeground > 0 }
+        //.filter { it.totalTimeInForeground > 0 }
         .map { stat ->
             UsageEventDto(
                 appPackage = stat.packageName,
