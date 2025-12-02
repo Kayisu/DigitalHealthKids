@@ -8,11 +8,8 @@ data class BedtimeDto(
 )
 
 data class PolicyResponseDto(
-    @SerializedName("child_id")
-    val childId: String,
-    @SerializedName("daily_limit_minutes")
-    val dailyLimitMinutes: Int,
-    @SerializedName("blocked_apps")
-    val blockedApps: List<String>,
+    @SerializedName("user_id") val userId: String, // 🔥 Refactor
+    @SerializedName("daily_limit_minutes") val dailyLimitMinutes: Int,
+    @SerializedName("blocked_apps") val blockedApps: List<String>,
     val bedtime: BedtimeDto?
 )

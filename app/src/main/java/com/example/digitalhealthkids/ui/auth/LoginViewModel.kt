@@ -1,13 +1,16 @@
 package com.example.digitalhealthkids.ui.auth
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.digitalhealthkids.domain.auth.LoginUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.core.content.edit
 
 data class LoginUiState(
     val email: String = "",
@@ -18,7 +21,8 @@ data class LoginUiState(
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val loginUseCase: LoginUseCase
+    private val loginUseCase: LoginUseCase,
+    @ApplicationContext private val context: Context // Prefs için context aldık
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -32,11 +36,8 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(password = value)
     }
 
-    /**
-     * onSuccess artık childId döndürüyor.
-     */
     fun login(
-        onSuccess: (String, String) -> Unit // (childId, deviceId)
+        onSuccess: (String, String) -> Unit
     ) {
         val current = _state.value
         if (current.email.isBlank() || current.password.isBlank()) {
@@ -50,10 +51,17 @@ class LoginViewModel @Inject constructor(
             _state.value = current.copy(isLoading = false)
 
             result.onSuccess { resp ->
-                // 🔥 Navigation'ın patlamaması için boş string değil,
-                // dolu bir string veriyoruz.
                 val safeDeviceId = resp.deviceId ?: "unknown_device"
-                onSuccess(resp.childId, safeDeviceId)
+
+                // 🔥 Login başarılı olunca Prefs'e kaydet (Worker için gerekli)
+                val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                prefs.edit {
+                    putString("user_id", resp.userId)
+                    putString("device_id", safeDeviceId)
+                    putString("token", resp.token)
+                }
+
+                onSuccess(resp.userId, safeDeviceId)
             }.onFailure { e ->
                 _state.value = current.copy(
                     error = e.message ?: "Giriş başarısız"
@@ -61,7 +69,4 @@ class LoginViewModel @Inject constructor(
             }
         }
     }
-
-
 }
-

@@ -4,7 +4,6 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 
-
 interface UsageApi {
 
     @POST("usage/report")
@@ -14,8 +13,6 @@ interface UsageApi {
 
     @GET("usage/dashboard")
     suspend fun getDashboard(
-        @Query("child_id") childId: String
+        @Query("user_id") userId: String // 🔥 Refactor
     ): DashboardDto
 }
-
-

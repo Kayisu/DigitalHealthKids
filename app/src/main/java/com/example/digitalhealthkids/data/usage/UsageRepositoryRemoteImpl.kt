@@ -9,8 +9,8 @@ class UsageRepositoryRemoteImpl(
     private val api: UsageApi
 ) : UsageRepository {
 
-    override suspend fun getDashboard(childId: String): DashboardData {
-        val dto = api.getDashboard(childId)
+    override suspend fun getDashboard(userId: String): DashboardData {
+        val dto = api.getDashboard(userId)
         return dto.toDomain()
     }
 }

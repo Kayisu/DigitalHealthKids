@@ -1,6 +1,7 @@
 package com.example.digitalhealthkids.core.di
 
 import com.example.digitalhealthkids.core.network.AuthApi
+import com.example.digitalhealthkids.core.network.FailoverInterceptor
 import com.example.digitalhealthkids.core.network.NetworkConstants
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.data.auth.AuthRepositoryImplementation
@@ -16,7 +17,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
-
+import java.util.concurrent.TimeUnit
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -27,18 +28,20 @@ object AppModule {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
+
         return OkHttpClient.Builder()
+            .addInterceptor(FailoverInterceptor())
             .addInterceptor(logging)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
     @Provides
     @Singleton
-    fun provideRetrofit(
-        client: OkHttpClient
-    ): Retrofit {
+    fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl(NetworkConstants.BASE_URL)
+            .baseUrl("http://localhost/api/")
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

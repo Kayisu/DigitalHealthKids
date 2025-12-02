@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,7 +14,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.core.network.usage.UsageReportRequestDto
-import com.example.digitalhealthkids.core.network.usage.readUsageEventsForRange // <-- İMPORT ETTİK
+import com.example.digitalhealthkids.core.network.usage.readUsageEventsForRange
 import com.example.digitalhealthkids.data.worker.UsageSyncWorker
 import com.example.digitalhealthkids.domain.usage.DashboardData
 import com.example.digitalhealthkids.domain.usage.UsageRepository
@@ -48,52 +47,35 @@ class HomeViewModel @Inject constructor(
         selectedDay = i
     }
 
-    // 1. Manuel / İlk Açılış Senkronizasyonu
-    fun syncUsageHistory(context: Context, childId: String, deviceId: String) {
+    // 🔥 Parametre childId -> userId
+    fun syncUsageHistory(context: Context, userId: String, deviceId: String) {
         viewModelScope.launch {
             _state.value = State(isLoading = true)
-            Log.d("UsageSync", "🚀 Senkronizasyon başladı. Child: $childId, Device: $deviceId")
+            Log.d("UsageSync", " Senkronizasyon başladı. User: $userId")
 
-            // ADIM 1: Veri Gönderme
             try {
-                // 7 günlük veriyi iste
                 val events = readUsageEventsForRange(context, 7)
-                Log.d("UsageSync", "📦 Android'den okunan ham veri sayısı: ${events.size}")
-
                 if (events.isNotEmpty()) {
-                    events.take(3).forEach { Log.d("UsageSync", "   -> Örnek paket: ${it.appPackage} (${it.totalSeconds} sn)") }
-
                     val body = UsageReportRequestDto(
-                        childId = childId,
+                        userId = userId,
                         deviceId = deviceId,
                         events = events
                     )
-                    Log.d("UsageSync", "📤 Backend'e gönderiliyor...")
-
-                    val response = usageApi.reportUsage(body)
-                    Log.d("UsageSync", "✅ Backend Yanıtı: Status=${response.status}, Inserted=${response.inserted}")
-                } else {
-                    Log.w("UsageSync", "⚠️ Okunacak veri bulunamadı! Liste boş.")
+                    usageApi.reportUsage(body)
                 }
             } catch (e: Exception) {
-                Log.e("UsageSync", "❌ Veri gönderme hatası: ${e.message}")
-                e.printStackTrace()
+                Log.e("UsageSync", " Veri gönderme hatası: ${e.message}")
             }
 
-            // ADIM 2: Dashboard Çekme
             try {
-                Log.d("UsageSync", "📥 Dashboard verisi çekiliyor...")
-                val d = usageRepository.getDashboard(childId)
-                Log.d("UsageSync", "📊 Dashboard alındı. Toplam süre: ${d.todayTotalMinutes} dk")
+                val d = usageRepository.getDashboard(userId) //
                 _state.value = State(isLoading = false, data = d)
             } catch (e: Exception) {
-                Log.e("UsageSync", "❌ Dashboard çekme hatası: ${e.message}")
                 _state.value = State(isLoading = false, error = e.message)
             }
         }
     }
 
-    // 2. Arka Plan Senkronizasyonunu Başlatma (Schedule)
     fun scheduleBackgroundSync(context: Context) {
         val syncRequest = PeriodicWorkRequestBuilder<UsageSyncWorker>(
             15, TimeUnit.MINUTES
@@ -107,7 +89,7 @@ class HomeViewModel @Inject constructor(
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "UsageSyncWork",
-            ExistingPeriodicWorkPolicy.KEEP, // Varsa eskisini koru, tekrar başlatma
+            ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
         )
     }

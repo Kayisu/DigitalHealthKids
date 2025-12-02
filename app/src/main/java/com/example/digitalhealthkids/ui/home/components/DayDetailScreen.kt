@@ -34,18 +34,21 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DailyDetailScreen(
+    userId: String,   // 🔥 GÜNCELLENDİ: childId -> userId
+    deviceId: String, // 🔥 EKLENDİ
     initialDayIndex: Int,
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val dashboard = state.data ?: return // Veri yoksa boş dön (Loading eklenebilir)
+    val context = LocalContext.current
 
-    // Pager, seçilen günden başlar
-    val pagerState = rememberPagerState(
-        initialPage = initialDayIndex,
-        pageCount = { dashboard.weeklyBreakdown.size }
-    )
+    // 🔥 Sayfa açılınca veriyi yeniden çek
+    LaunchedEffect(userId) {
+        if (state.data == null) {
+            viewModel.syncUsageHistory(context, userId, deviceId)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -63,17 +66,33 @@ fun DailyDetailScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            if (state.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (state.data != null) {
+                val dashboard = state.data!!
 
-        Column(Modifier.padding(innerPadding)) {
-            // 🔥 Günler Arası Kaydırmalı Alan (Slider)
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { pageIndex ->
-                val stat = dashboard.weeklyBreakdown[pageIndex]
+                // Güvenlik kontrolü: Index liste dışına çıkmasın
+                val safeInitialPage = initialDayIndex.coerceIn(0, (dashboard.weeklyBreakdown.size - 1).coerceAtLeast(0))
 
-                // Sayfa İçeriği
-                DailyContentPage(stat = stat)
+                val pagerState = rememberPagerState(
+                    initialPage = safeInitialPage,
+                    pageCount = { dashboard.weeklyBreakdown.size }
+                )
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { pageIndex ->
+                    val stat = dashboard.weeklyBreakdown[pageIndex]
+                    DailyContentPage(stat = stat)
+                }
+            } else {
+                Text(
+                    "Veri yüklenemedi",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }
@@ -94,7 +113,7 @@ fun DailyContentPage(stat: DailyStat) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. HEADER: Tarih ve Toplam Süre (Büyük Kart)
+        // 1. HEADER
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -118,7 +137,6 @@ fun DailyContentPage(stat: DailyStat) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Görsel bir Progress Bar (Günün 24 saatine oranı - şimdilik 4 saat hedef bazlı)
                     val progress = (stat.totalMinutes / 240f).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
@@ -147,11 +165,9 @@ fun DailyContentPage(stat: DailyStat) {
             }
         }
 
-        // 3. UYGULAMA LİSTESİ (İkonlu ve İsimli)
+        // 3. LİSTE
         items(stat.apps) { app ->
-            // İsmi düzeltiyoruz
             val cleanName = AppUtils.getAppName(context, app.packageName, app.appName)
-
             AppUsageRowItem(
                 name = cleanName,
                 packageName = app.packageName,
@@ -160,7 +176,7 @@ fun DailyContentPage(stat: DailyStat) {
         }
 
         item {
-            Spacer(Modifier.height(32.dp)) // Alt boşluk
+            Spacer(Modifier.height(32.dp))
         }
     }
 }
@@ -174,23 +190,15 @@ fun AppUsageRowItem(name: String, packageName: String, minutes: Int) {
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Sol: İkon
         AppIcon(packageName = packageName, modifier = Modifier.size(48.dp))
-
         Spacer(modifier = Modifier.width(16.dp))
-
-        // Orta: İsim ve Paket
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = name,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
-            // İstersen paket adını küçük yazabilirsin debug için, yoksa kapat
-            // Text(text = packageName, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
-
-        // Sağ: Süre (Renkli Badge)
         Surface(
             color = MaterialTheme.colorScheme.secondaryContainer,
             shape = RoundedCornerShape(8.dp)

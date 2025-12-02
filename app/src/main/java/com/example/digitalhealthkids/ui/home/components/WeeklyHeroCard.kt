@@ -14,7 +14,6 @@ import com.example.digitalhealthkids.domain.usage.DashboardData
 
 @Composable
 fun WeeklyHeroCard(data: DashboardData) {
-    // 🔥 YENİ HESAPLAMA: Obje listesinden toplamları çekiyoruz
     val weeklyTotal = data.weeklyBreakdown.sumOf { it.totalMinutes }
     val weeklyAverage = if (data.weeklyBreakdown.isNotEmpty())
         weeklyTotal / data.weeklyBreakdown.size
@@ -37,7 +36,7 @@ fun WeeklyHeroCard(data: DashboardData) {
             )
 
             Text(
-                text = data.childName,
+                text = data.userName,
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )

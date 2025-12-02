@@ -7,13 +7,13 @@ data class AppUsageItem(
 )
 
 data class DailyStat(
-    val date: String,      // Örn: "2025-11-29"
+    val date: String,
     val totalMinutes: Int,
     val apps: List<AppUsageItem>
 )
 
 data class DashboardData(
-    val childName: String,
+    val userName: String,
     val todayTotalMinutes: Int,
     val weeklyBreakdown: List<DailyStat>,
     val bedtimeStart: String?,
@@ -21,5 +21,5 @@ data class DashboardData(
 )
 
 interface UsageRepository {
-    suspend fun getDashboard(childId: String): DashboardData
+    suspend fun getDashboard(userId: String): DashboardData
 }

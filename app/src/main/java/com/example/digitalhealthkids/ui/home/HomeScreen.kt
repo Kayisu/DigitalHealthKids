@@ -12,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,15 +22,15 @@ import kotlinx.coroutines.launch
 
 data class BottomNavItem(
     val label: String,
-    val icon: ImageVector
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
-    childId: String,
+    userId: String,
     deviceId: String,
-    onNavigateToDetail: (Int) -> Unit, // 🔥 Yeni eklenen parametre
+    onNavigateToDetail: (Int) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -39,8 +38,8 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    LaunchedEffect(childId, deviceId) {
-        viewModel.syncUsageHistory(context, childId, deviceId)
+    LaunchedEffect(userId, deviceId) {
+        viewModel.syncUsageHistory(context, userId, deviceId)
         viewModel.scheduleBackgroundSync(context)
     }
 
@@ -107,7 +106,7 @@ fun HomeScreen(
                                 dashboard = dashboard,
                                 selectedDay = viewModel.selectedDay,
                                 onDaySelected = viewModel::selectDay,
-                                onViewDetailsClick = onNavigateToDetail // 🔥 Bağlantı burada
+                                onViewDetailsClick = onNavigateToDetail
                             )
                             1 -> TopAppsPage(dashboard)
                             2 -> RulesPage(dashboard)

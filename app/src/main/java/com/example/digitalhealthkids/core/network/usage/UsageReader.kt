@@ -15,40 +15,46 @@ private val isoFormatter: DateTimeFormatter =
 fun toIso(millis: Long): String =
     isoFormatter.format(Instant.ofEpochMilli(millis))
 
-// 🔥 İsim çözücü: Bulamazsa paket ismini süsleyerek döndürür
+// 🔥 İYİLEŞTİRME 1: İsim Çözücü
 fun resolveAppName(context: Context, packageName: String): String {
     return try {
         val pm: PackageManager = context.packageManager
         val appInfo = pm.getApplicationInfo(packageName, 0)
         pm.getApplicationLabel(appInfo).toString()
     } catch (e: Exception) {
-        // Eğer isim bulunamazsa "com.instagram.android" -> "Instagram" yapar
+        // Bulamazsa paket isminin son kısmını (örn: com.whatsapp -> Whatsapp) yap
         packageName.substringAfterLast('.')
-            .replaceFirstChar { it.uppercase() }
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 }
 
-// 🔥 Sistem uygulamalarını elemek için filtre
+// 🔥 İYİLEŞTİRME 2: Filtreleme Mantığı (Google Digital Wellbeing Tarzı)
 fun isUserApp(context: Context, packageName: String): Boolean {
-    // 1. Yasaklı Liste (Blacklist) - Bunları kesinlikle gösterme
-    val junkApps = setOf(
-        "com.android.launcher",       // Ana ekran (Pixel Launcher vs)
-        "com.google.android.launcher",
-        "com.android.systemui",       // Üst bar, navigasyon
-        "com.android.settings",       // Ayarlar menüsü
-        "com.google.android.gms",     // Google Play Hizmetleri
-        "com.google.android.googlequicksearchbox", // Google Arama çubuğu
-        "com.android.vending",        // Play Store (İstersen kalsın, genelde gereksiz)
-        "android"                     // Sistem çekirdeği
-    )
+    // 1. Kendi uygulamamızı gizle (Bizim app hariç demiştin)
+    if (packageName == context.packageName) return false
 
+    // 2. Yasaklı Liste (Kesinlikle görmek istemediklerimiz)
+    val junkApps = setOf(
+        "com.android.systemui",       // Bildirim çubuğu
+        "com.android.settings",       // Ayarlar
+        "com.google.android.gms",     // Google Play Hizmetleri
+        "com.google.android.googlequicksearchbox", // Google Arama Widget'ı
+        "android"                     // Android System Çekirdeği
+    )
     if (junkApps.contains(packageName)) return false
+
+    // Launcher'ları (Ana Ekran) gizle (Pixel Launcher, OneUI Home vb.)
     if (packageName.contains("launcher", ignoreCase = true)) return false
 
-    return true
+    // 3. ALTIN KURAL: Bu uygulama ana ekrandan açılabilir mi?
+    // Instagram, WhatsApp, Twitter, Oyunlar -> Açılabilir.
+    // Klavye, Bluetooth, Arka plan servisleri -> Açılamaz.
+    val pm = context.packageManager
+    val intent = pm.getLaunchIntentForPackage(packageName)
+
+    return intent != null
 }
 
-// Manuel senkronizasyon için (Örn: Son 7 gün)
 fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto> {
     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     val calendar = Calendar.getInstance()
@@ -60,6 +66,7 @@ fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto
     calendar.set(Calendar.SECOND, 0)
     val startTime = calendar.timeInMillis
 
+    // QUERY_AND_AGGREGATE değil queryUsageStats kullanıyoruz ki detay alabilelim
     val stats: List<UsageStats> = usm.queryUsageStats(
         UsageStatsManager.INTERVAL_DAILY,
         startTime,
@@ -68,9 +75,11 @@ fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto
 
     if (stats.isNullOrEmpty()) return emptyList()
 
+    // Aynı paketten birden fazla kayıt gelebilir (farklı günlerde), bunları birleştirmeliyiz
+    // Ama şimdilik ham gönderiyoruz, backend hallediyor.
     return stats
         .filter { it.totalTimeInForeground > 0 }
-        .filter { isUserApp(context, it.packageName) } // 🔥 FİLTRE AKTİF
+        .filter { isUserApp(context, it.packageName) }
         .map { stat ->
             UsageEventDto(
                 appPackage = stat.packageName,
@@ -82,12 +91,10 @@ fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto
         }
 }
 
-// 🔥 Background Worker (Delta Sync) için gerekli fonksiyon
 fun readUsageEventsSince(context: Context, lastSyncTimestamp: Long): List<UsageEventDto> {
     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     val now = System.currentTimeMillis()
 
-    // Eğer hiç senkronizasyon yapılmamışsa (0), 7 gün öncesinden başla
     val startTime = if (lastSyncTimestamp == 0L) {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.DAY_OF_YEAR, -7)
@@ -106,7 +113,7 @@ fun readUsageEventsSince(context: Context, lastSyncTimestamp: Long): List<UsageE
 
     return stats
         .filter { it.totalTimeInForeground > 0 }
-        .filter { isUserApp(context, it.packageName) } // 🔥 FİLTRE BURADA DA AKTİF
+        .filter { isUserApp(context, it.packageName) }
         .map { stat ->
             UsageEventDto(
                 appPackage = stat.packageName,

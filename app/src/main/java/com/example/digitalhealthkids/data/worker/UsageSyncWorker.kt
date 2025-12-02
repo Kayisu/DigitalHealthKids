@@ -22,27 +22,24 @@ class UsageSyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            // 1. SharedPreferences'dan son senkronizasyon zamanını, childId ve deviceId'yi al
             val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             val lastSync = prefs.getLong("last_sync_time", 0L)
-            val childId = prefs.getString("child_id", null)
+
+            // 🔥 Refactor: Key değişimi
+            val userId = prefs.getString("user_id", null)
             val deviceId = prefs.getString("device_id", null)
 
-            if (childId == null || deviceId == null) {
-                return@withContext Result.failure() // Login olmamış
+            if (userId == null || deviceId == null) {
+                return@withContext Result.failure()
             }
 
-            // 2. Verileri oku
             val events = readUsageEventsSince(applicationContext, lastSync)
 
             if (events.isNotEmpty()) {
-                // 3. Backend'e gönder
                 usageApi.reportUsage(
-                    UsageReportRequestDto(childId, deviceId, events)
+                    UsageReportRequestDto(userId, deviceId, events) // 🔥 Refactor
                 )
 
-                // 4. Başarılı olursa zamanı güncelle
-                // (events içindeki en son zaman damgasını alabiliriz veya şimdiki zamanı)
                 prefs.edit {
                     putLong("last_sync_time", System.currentTimeMillis())
                 }
@@ -51,7 +48,7 @@ class UsageSyncWorker @AssistedInject constructor(
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()
-            Result.retry() // Hata olursa (internet yoksa) sonra tekrar dene
+            Result.retry()
         }
     }
 }

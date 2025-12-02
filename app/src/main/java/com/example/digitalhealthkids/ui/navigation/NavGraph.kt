@@ -18,48 +18,50 @@ fun AppNavGraph(
         navController = navController,
         startDestination = "login"
     ) {
-        // 1. Giriş Ekranı
         composable("login") {
             LoginScreen(
-                onLoginSuccess = { childId, deviceId ->
-                    navController.navigate("home/$childId/$deviceId") {
+                onLoginSuccess = { userId, deviceId -> // 🔥 Refactor
+                    navController.navigate("home/$userId/$deviceId") {
                         popUpTo("login") { inclusive = true }
                     }
                 }
             )
         }
 
-        // 2. Ana Ekran (Home) - Hatayı düzelttik ve callback ekledik
         composable(
-            route = "home/{childId}/{deviceId}",
+            route = "home/{userId}/{deviceId}", // 🔥 Refactor
             arguments = listOf(
-                navArgument("childId") { type = NavType.StringType },
+                navArgument("userId") { type = NavType.StringType },
                 navArgument("deviceId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
+            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
             val deviceId = backStackEntry.arguments?.getString("deviceId") ?: return@composable
 
             HomeScreen(
-                childId = childId,
+                userId = userId, // 🔥 Refactor
                 deviceId = deviceId,
-                // Ana ekrandan detay butonuna basıldığında burası çalışır:
                 onNavigateToDetail = { dayIndex ->
-                    navController.navigate("detail/$dayIndex")
+                    navController.navigate("detail/$userId/$deviceId/$dayIndex")
                 }
             )
         }
 
-        // 3. Detay Ekranı (Yeni Sayfa)
         composable(
-            route = "detail/{dayIndex}",
+            route = "detail/{userId}/{deviceId}/{dayIndex}",
             arguments = listOf(
+                navArgument("userId") { type = NavType.StringType },
+                navArgument("deviceId") { type = NavType.StringType },
                 navArgument("dayIndex") { type = NavType.IntType }
             )
         ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
             val dayIndex = backStackEntry.arguments?.getInt("dayIndex") ?: 0
 
             DailyDetailScreen(
+                userId = userId,
+                deviceId = deviceId,
                 initialDayIndex = dayIndex,
                 navController = navController
             )
