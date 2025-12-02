@@ -11,6 +11,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.core.content.edit
 
 @HiltWorker
 class UsageSyncWorker @AssistedInject constructor(
@@ -42,7 +43,9 @@ class UsageSyncWorker @AssistedInject constructor(
 
                 // 4. Başarılı olursa zamanı güncelle
                 // (events içindeki en son zaman damgasını alabiliriz veya şimdiki zamanı)
-                prefs.edit().putLong("last_sync_time", System.currentTimeMillis()).apply()
+                prefs.edit {
+                    putLong("last_sync_time", System.currentTimeMillis())
+                }
             }
 
             Result.success()

@@ -3,77 +3,78 @@ package com.example.digitalhealthkids.ui.home.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.example.digitalhealthkids.domain.usage.DailyStat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun WeeklyBarChart(
-    values: List<Int>,
-    selectedDay: Int,
+    dailyStats: List<DailyStat>,
+    selectedDayIndex: Int,
     onDaySelected: (Int) -> Unit
 ) {
-    // 🔥 DÜZELTME BURADA:
-    // Eğer liste boşsa veya max değer 0 ise, böleni en az 1 yapıyoruz.
-    // Böylece 0/0 = NaN hatasından kurtuluyoruz.
-    val maxValueInList = values.maxOrNull() ?: 0
-    val max = if (maxValueInList == 0) 1f else maxValueInList.toFloat()
+    val maxMinutes = dailyStats.maxOfOrNull { it.totalMinutes } ?: 1
+    val max = if (maxMinutes == 0) 1f else maxMinutes.toFloat()
 
-    val labels = listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
-
-    Card {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
         Column(
             Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Haftalık Kullanım", style = MaterialTheme.typography.titleMedium)
+            Text("Haftalık Aktivite", style = MaterialTheme.typography.titleMedium)
 
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(150.dp),
+                Modifier.fillMaxWidth().height(160.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
-                // Eğer values listesi 7 günden az gelirse patlamasın diye take/pad yapılabilir
-                // ama şimdilik backend 7 dönüyor varsayıyoruz.
-                values.forEachIndexed { index, value ->
-                    val isSelected = index == selectedDay
+                dailyStats.forEachIndexed { index, stat ->
+                    val isSelected = index == selectedDayIndex
+                    val ratio = stat.totalMinutes / max
 
-                    // Oran hesabı
-                    val barHeightRatio = value / max
+                    // Tarih Formatı (Örn: "Pzt")
+                    val dayLabel = try {
+                        val date = LocalDate.parse(stat.date)
+                        date.format(DateTimeFormatter.ofPattern("EEE", Locale("tr")))
+                    } catch (e: Exception) { "?" }
 
-                    Box(
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
-                            .width(28.dp)
-                            .fillMaxHeight(barHeightRatio) // Artık burası NaN olamaz
-                            .background(
-                                if (isSelected)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                            )
-                            .clickable { onDaySelected(index) }
-                    )
-                }
-            }
+                            .weight(1f)
+                            .clickable { onDaySelected(index) } // 🔥 TIKLAMA
+                    ) {
+                        // Çubuk
+                        Box(
+                            modifier = Modifier
+                                .width(16.dp) // Daha ince, zarif çubuklar
+                                .fillMaxHeight(ratio.coerceAtLeast(0.05f)) // En azından minik bir çizgi görünsün
+                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.primaryContainer
+                                )
+                        )
 
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                labels.forEachIndexed { i, label ->
-                    Text(
-                        text = label,
-                        color = if (i == selectedDay)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                        // Gün Etiketi
+                        Text(
+                            text = dayLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

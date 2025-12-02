@@ -6,31 +6,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.digitalhealthkids.domain.usage.DashboardData
+import com.example.digitalhealthkids.core.util.formatDuration
 
 @Composable
 fun WeeklyDayDetailCard(
     dashboard: DashboardData,
     dayIndex: Int
 ) {
-    val dayMinutes = dashboard.weeklyTrend[dayIndex]
-    val dayLabel = listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")[dayIndex]
+    // Güvenli erişim
+    val stat = dashboard.weeklyBreakdown.getOrNull(dayIndex)
+
+    if (stat == null) return
 
     Card {
         Column(
             Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("$dayLabel – $dayMinutes dk", style = MaterialTheme.typography.titleMedium)
-
-            Text(
-                "En yoğun saat aralığı: 18:00 – 21:00",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("${stat.date} – ${formatDuration(stat.totalMinutes)}", style = MaterialTheme.typography.titleMedium)
 
             Spacer(Modifier.height(8.dp))
 
-            dashboard.topApps.take(3).forEach { app ->
-                Text("${app.appName}: ${app.minutes} dk")
+            // 🔥 ARTIK HER GÜNÜN KENDİ APP LİSTESİ VAR
+            stat.apps.take(5).forEach { app ->
+                Text("${app.appName}: ${formatDuration(app.minutes)}")
             }
         }
     }
