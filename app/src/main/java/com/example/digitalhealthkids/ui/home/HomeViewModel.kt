@@ -55,34 +55,27 @@ class HomeViewModel @Inject constructor(
             Log.d("UsageSync", "Senkronizasyon başladı. User: $userId")
 
             try {
-                // 🔥 DÜZELTME: Ağır işlemi IO thread'ine taşıdık
                 withContext(Dispatchers.IO) {
-                    // 1. Veriyi Oku (Çok ağır işlem)
-                    val events = readUsageEventsForRange(context, 7) // 7 günlük veri
+                    // 🔥 DEĞİŞİKLİK: 7 yerine 1 yaptık. (0=Bugün, 1=Bugün+Dün)
+                    // Bu sayede veri trafiği azalır ve geçmiş günleri bozma riski biter.
+                    val events = readUsageEventsForRange(context, 1)
 
                     if (events.isNotEmpty()) {
-                        Log.d("UsageSync", "${events.size} adet olay bulundu, gönderiliyor...")
+                        Log.d("UsageSync", "${events.size} adet kümülatif veri bulundu, gönderiliyor...")
                         val body = UsageReportRequestDto(
                             userId = userId,
                             deviceId = deviceId,
                             events = events
                         )
-                        // 2. Sunucuya Gönder
                         usageApi.reportUsage(body)
                     } else {
                         Log.d("UsageSync", "Gönderilecek yeni olay bulunamadı.")
                     }
 
-                    // 3. Güncel Dashboard'u Çek
+                    // Dashboard verisini çek
                     val d = usageRepository.getDashboard(userId)
-
-                    // UI güncellemesi için tekrar Main thread'e dönmemize gerek yok,
-                    // postValue veya emit işlemleri thread-safe'dir,
-                    // ama StateFlow direkt atama (value =) yapıyorsak Main'de olmalıydık.
-                    // Ancak withContext bloğundan çıkan sonuçla aşağıda atama yapabiliriz.
-                    d // withContext sonucu olarak d'yi döndür
+                    d
                 }.let { dashboardData ->
-                    // Burası tekrar Main Thread (viewModelScope default)
                     _state.value = State(isLoading = false, data = dashboardData)
                 }
 

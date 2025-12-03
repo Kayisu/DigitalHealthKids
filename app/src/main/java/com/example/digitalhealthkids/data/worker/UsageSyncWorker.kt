@@ -6,12 +6,12 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.core.network.usage.UsageReportRequestDto
-import com.example.digitalhealthkids.core.network.usage.readUsageEventsSince
+// 🔥 DEĞİŞEN IMPORT BURASI:
+import com.example.digitalhealthkids.core.network.usage.readUsageEventsForRange
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.core.content.edit
 
 @HiltWorker
 class UsageSyncWorker @AssistedInject constructor(
@@ -23,9 +23,8 @@ class UsageSyncWorker @AssistedInject constructor(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             val prefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            val lastSync = prefs.getLong("last_sync_time", 0L)
 
-            // 🔥 Refactor: Key değişimi
+            // User ID ve Device ID yoksa çalışamayız
             val userId = prefs.getString("user_id", null)
             val deviceId = prefs.getString("device_id", null)
 
@@ -33,16 +32,19 @@ class UsageSyncWorker @AssistedInject constructor(
                 return@withContext Result.failure()
             }
 
-            val events = readUsageEventsSince(applicationContext, lastSync)
+            // 🔥 ESKİSİ: readUsageEventsSince(applicationContext, lastSync)
+            // 🔥 YENİSİ: readUsageEventsForRange(..., 1) -> 0=Bugün, 1=Bugün+Dün
+            // Worker her çalıştığında son 48 saati günceller, böylece veri kaybı olmaz.
+            val events = readUsageEventsForRange(applicationContext, 1)
 
             if (events.isNotEmpty()) {
                 usageApi.reportUsage(
-                    UsageReportRequestDto(userId, deviceId, events) // 🔥 Refactor
+                    UsageReportRequestDto(userId, deviceId, events)
                 )
 
-                prefs.edit {
-                    putLong("last_sync_time", System.currentTimeMillis())
-                }
+                // Artık last_sync_time'a mantık olarak ihtiyacımız kalmadı ama
+                // debug/log amaçlı tutmaya devam edebilirsin.
+                prefs.edit().putLong("last_sync_time", System.currentTimeMillis()).apply()
             }
 
             Result.success()
