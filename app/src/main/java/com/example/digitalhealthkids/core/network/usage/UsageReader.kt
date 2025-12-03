@@ -1,24 +1,18 @@
-// Dosya: app/src/main/java/com/example/digitalhealthkids/core/network/usage/UsageReader.kt
-
 package com.example.digitalhealthkids.core.network.usage
 
 import android.app.AppOpsManager
-import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Process
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-// Backend ISO formatı bekliyor (UTC)
-private val isoFormatter: DateTimeFormatter =
-    DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC)
-
-fun toIso(millis: Long): String =
-    isoFormatter.format(Instant.ofEpochMilli(millis))
+// Backend'e yollanacak sade tarih formatı
+val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
 fun hasUsagePermission(context: Context): Boolean {
     val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
@@ -40,117 +34,104 @@ fun resolveAppName(context: Context, packageName: String): String {
     }
 }
 
-/**
- * 🔥 FİLTRELEME (StatsHelper.kt'den Birebir Port)
- * Eski karmaşık filtreleri attık. Sadece "Launch Intent'i var mı?" diye bakıyoruz.
- * Sistem Başlatıcılar, System UI vb. genelde null döner ve elenir.
- */
+// 🔥 Launcher ve Sistem Uygulamalarını Temizleme
 fun isUserApp(context: Context, packageName: String): Boolean {
-    if (packageName == context.packageName) return false // Kendimizi gösterme
+    if (packageName == context.packageName) return false
+
+    val knownLaunchers = listOf(
+        "com.android.launcher",
+        "com.google.android.apps.nexuslauncher",
+        "com.samsung.android.app.home.ui",
+        "com.miui.home",
+        "com.huawei.android.launcher",
+        "com.oppo.launcher",
+        "net.oneplus.launcher",
+        "com.bbk.launcher2" // Realme/Oppo ek
+    )
+    if (knownLaunchers.any { packageName.contains(it) }) return false
+
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+    val resolveInfo = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+    if (resolveInfo?.activityInfo?.packageName == packageName) return false
 
     return try {
         val pm = context.packageManager
-        // Demonun yaptığı tek ve geçerli kontrol bu:
-        val intent = pm.getLaunchIntentForPackage(packageName)
-        intent != null
+        pm.getLaunchIntentForPackage(packageName) != null
     } catch (e: Exception) {
         false
     }
 }
 
 /**
- * 🔥 SÜRE HESAPLAMA (StatsHelper.kt -> getUsageSessions mantığı)
- * Aggregate yerine Event'leri tek tek işleyip oturum (Session) oluşturuyoruz.
+ * 🔥 JOHNNY SILVERHAND METHOD
+ * Tek tek gün hesaplamak yerine, son 7 günü komple çekip,
+ * "Timestamp -> Tarih Stringi" dönüşümünü burada yaparak
+ * kesin ve net bir gruplama yapıyoruz.
  */
-fun getDailyUsageStats(context: Context, startTime: Long, endTime: Long): List<UsageEventDto> {
+fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto> {
     if (!hasUsagePermission(context)) return emptyList()
 
     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
-    // 1. Tüm olayları çek
-    val events = usm.queryEvents(startTime, endTime)
-    if (events == null) return emptyList()
+    // 1. Sorgu Aralığını Belirle
+    // daysBack = 6 ise, son 7 günü (Bugün dahil) çek.
+    // daysBack = 0 ise, sadece bugünü (Gece 00:00'dan şu ana) çek.
+    val cal = Calendar.getInstance()
+    val endTime = System.currentTimeMillis() // Şu an
 
-    val appSessionStartTimes = mutableMapOf<String, Long>() // Hangi uygulama ne zaman açıldı?
-    val usageDurations = mutableMapOf<String, Long>()     // Toplam süreler
+    // Başlangıç: daysBack kadar geriye git, o günün 00:00'ına in
+    cal.add(Calendar.DAY_OF_YEAR, -daysBack)
+    cal.set(Calendar.HOUR_OF_DAY, 0)
+    cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0)
+    cal.set(Calendar.MILLISECOND, 0)
+    val startTime = cal.timeInMillis
 
-    val event = UsageEvents.Event()
-    while (events.hasNextEvent()) {
-        events.getNextEvent(event)
+    // 2. Google'dan INTERVAL_DAILY olarak iste
+    // Bu, bize o aralıktaki tüm günlerin parçalarını verir.
+    val usageStatsList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
 
-        val pkg = event.packageName
+    if (usageStatsList.isNullOrEmpty()) return emptyList()
 
-        // StatsHelper satır 62: ACTIVITY_RESUMED -> Oturum Başladı
-        if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
-            appSessionStartTimes[pkg] = event.timeStamp
-        }
-        // StatsHelper satır 64: ACTIVITY_PAUSED -> Oturum Bitti
-        else if (event.eventType == UsageEvents.Event.ACTIVITY_PAUSED) {
-            val start = appSessionStartTimes.remove(pkg)
-            if (start != null) {
-                val duration = event.timeStamp - start
-                // Negatif veya 0 süreyi alma
-                if (duration > 0) {
-                    usageDurations[pkg] = (usageDurations[pkg] ?: 0L) + duration
-                }
+    // 3. Veriyi İşle: (Tarih Stringi -> Paket Adı -> Toplam Süre)
+    val dailyMap = mutableMapOf<String, MutableMap<String, Long>>()
+
+    for (stat in usageStatsList) {
+        // Eğer süre 0 ise hiç uğraşma
+        if (stat.totalTimeInForeground < 1000) continue
+
+        // 🔥 KRİTİK NOKTA: Google'ın verdiği zaman damgasını, TELEFONUN yerel saatine göre tarihe çevir.
+        // Böylece telefon ne gösteriyorsa biz de onu görürüz.
+        val dateString = dateFormat.format(Date(stat.firstTimeStamp))
+
+        // Gelecek tarihli hatalı verileri ele (System saati kaymaları)
+        if (stat.firstTimeStamp > System.currentTimeMillis()) continue
+
+        // Bu tarih için map'i hazırla
+        val packageMap = dailyMap.getOrPut(dateString) { mutableMapOf() }
+
+        // Paketi bul ve süreyi ekle (Eğer aynı gün için birden fazla parça varsa topla)
+        val currentTotal = packageMap.getOrDefault(stat.packageName, 0L)
+        packageMap[stat.packageName] = currentTotal + stat.totalTimeInForeground
+    }
+
+    // 4. DTO'ya Dönüştür
+    val resultList = mutableListOf<UsageEventDto>()
+
+    dailyMap.forEach { (dateStr, pkgMap) ->
+        pkgMap.forEach { (pkgName, totalTimeMillis) ->
+            if (isUserApp(context, pkgName)) {
+                resultList.add(
+                    UsageEventDto(
+                        appPackage = pkgName,
+                        appName = resolveAppName(context, pkgName),
+                        dateStr = dateStr, // "2025-12-03"
+                        totalSeconds = (totalTimeMillis / 1000).toInt()
+                    )
+                )
             }
         }
     }
 
-    // 🔥 StatsHelper satır 73: Hala açık kalanları ekle (O AN KULLANILAN UYGULAMA)
-    // Döngü bitti ama 'appSessionStartTimes' içinde kalanlar şu an ekranda olanlardır.
-    // Onların süresini sorgu bitiş zamanına (endTime) kadar hesaplayıp ekliyoruz.
-    appSessionStartTimes.forEach { (pkg, start) ->
-        val duration = endTime - start
-        if (duration > 0) {
-            usageDurations[pkg] = (usageDurations[pkg] ?: 0L) + duration
-        }
-    }
-
-    // DTO Çevrimi ve Filtreleme
-    return usageDurations.mapNotNull { (pkg, totalMillis) ->
-        // Filtreyi burada uyguluyoruz (1 saniyeden az olanları gürültü diye atıyoruz)
-        if (totalMillis > 1000 && isUserApp(context, pkg)) {
-            UsageEventDto(
-                appPackage = pkg,
-                appName = resolveAppName(context, pkg),
-                startTime = toIso(startTime),
-                endTime = toIso(endTime),
-                totalSeconds = (totalMillis / 1000).toInt()
-            )
-        } else {
-            null
-        }
-    }.sortedByDescending { it.totalSeconds }
-}
-
-// ViewModel'den çağrılan ana fonksiyon (Tarih aralığı oluşturup yukarıyı çağırır)
-fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto> {
-    val allEvents = mutableListOf<UsageEventDto>()
-
-    for (i in 0..daysBack) {
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.DAY_OF_YEAR, -i)
-
-        // Günün başı 00:00
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val startOfDay = cal.timeInMillis
-
-        // Günün sonu
-        val endOfDay = if (i == 0) {
-            System.currentTimeMillis() // Bugünse şu ana kadar
-        } else {
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            cal.set(Calendar.MILLISECOND, 999)
-            cal.timeInMillis
-        }
-
-        allEvents.addAll(getDailyUsageStats(context, startOfDay, endOfDay))
-    }
-    return allEvents
+    return resultList
 }

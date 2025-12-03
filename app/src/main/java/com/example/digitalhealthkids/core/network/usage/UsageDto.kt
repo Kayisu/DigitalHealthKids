@@ -1,18 +1,17 @@
 package com.example.digitalhealthkids.core.network.usage
 
-import com.example.digitalhealthkids.domain.usage.*
 import com.google.gson.annotations.SerializedName
+import com.example.digitalhealthkids.domain.usage.*
 
 data class UsageEventDto(
     @SerializedName("app_package") val appPackage: String,
     @SerializedName("app_name") val appName: String?,
-    @SerializedName("start_time") val startTime: String,
-    @SerializedName("end_time") val endTime: String,
+    @SerializedName("date_str") val dateStr: String, // 🔥 YENİ
     @SerializedName("total_seconds") val totalSeconds: Int
 )
 
 data class UsageReportRequestDto(
-    @SerializedName("user_id") val userId: String, // 🔥 Refactor
+    @SerializedName("user_id") val userId: String,
     @SerializedName("device_id") val deviceId: String,
     val events: List<UsageEventDto>
 )
@@ -32,7 +31,7 @@ data class DailyStatDto(
 )
 
 data class DashboardDto(
-    @SerializedName("user_name") val userName: String, // 🔥 Refactor
+    @SerializedName("user_name") val userName: String,
     @SerializedName("today_total_minutes") val todayTotalMinutes: Int,
     @SerializedName("weekly_breakdown") val weeklyBreakdown: List<DailyStatDto>,
     @SerializedName("bedtime_start") val bedtimeStart: String?,
@@ -43,7 +42,7 @@ data class DashboardDto(
 fun AppUsageDto.toDomain() = AppUsageItem(appName, packageName, minutes)
 fun DailyStatDto.toDomain() = DailyStat(date, totalMinutes, apps.map { it.toDomain() })
 fun DashboardDto.toDomain() = DashboardData(
-    userName = userName, // 🔥 Refactor
+    userName = userName,
     todayTotalMinutes = todayTotalMinutes,
     weeklyBreakdown = weeklyBreakdown.map { it.toDomain() },
     bedtimeStart = bedtimeStart,
