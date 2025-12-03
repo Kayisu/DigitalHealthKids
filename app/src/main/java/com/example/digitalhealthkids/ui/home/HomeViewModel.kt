@@ -19,9 +19,11 @@ import com.example.digitalhealthkids.data.worker.UsageSyncWorker
 import com.example.digitalhealthkids.domain.usage.DashboardData
 import com.example.digitalhealthkids.domain.usage.UsageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers // <-- Bunu eklemeyi unutma
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext // <-- Bunu eklemeyi unutma
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -47,30 +49,45 @@ class HomeViewModel @Inject constructor(
         selectedDay = i
     }
 
-    // 🔥 Parametre childId -> userId
     fun syncUsageHistory(context: Context, userId: String, deviceId: String) {
         viewModelScope.launch {
             _state.value = State(isLoading = true)
-            Log.d("UsageSync", " Senkronizasyon başladı. User: $userId")
+            Log.d("UsageSync", "Senkronizasyon başladı. User: $userId")
 
             try {
-                val events = readUsageEventsForRange(context, 7)
-                if (events.isNotEmpty()) {
-                    val body = UsageReportRequestDto(
-                        userId = userId,
-                        deviceId = deviceId,
-                        events = events
-                    )
-                    usageApi.reportUsage(body)
+                // 🔥 DÜZELTME: Ağır işlemi IO thread'ine taşıdık
+                withContext(Dispatchers.IO) {
+                    // 1. Veriyi Oku (Çok ağır işlem)
+                    val events = readUsageEventsForRange(context, 7) // 7 günlük veri
+
+                    if (events.isNotEmpty()) {
+                        Log.d("UsageSync", "${events.size} adet olay bulundu, gönderiliyor...")
+                        val body = UsageReportRequestDto(
+                            userId = userId,
+                            deviceId = deviceId,
+                            events = events
+                        )
+                        // 2. Sunucuya Gönder
+                        usageApi.reportUsage(body)
+                    } else {
+                        Log.d("UsageSync", "Gönderilecek yeni olay bulunamadı.")
+                    }
+
+                    // 3. Güncel Dashboard'u Çek
+                    val d = usageRepository.getDashboard(userId)
+
+                    // UI güncellemesi için tekrar Main thread'e dönmemize gerek yok,
+                    // postValue veya emit işlemleri thread-safe'dir,
+                    // ama StateFlow direkt atama (value =) yapıyorsak Main'de olmalıydık.
+                    // Ancak withContext bloğundan çıkan sonuçla aşağıda atama yapabiliriz.
+                    d // withContext sonucu olarak d'yi döndür
+                }.let { dashboardData ->
+                    // Burası tekrar Main Thread (viewModelScope default)
+                    _state.value = State(isLoading = false, data = dashboardData)
                 }
-            } catch (e: Exception) {
-                Log.e("UsageSync", " Veri gönderme hatası: ${e.message}")
-            }
 
-            try {
-                val d = usageRepository.getDashboard(userId) //
-                _state.value = State(isLoading = false, data = d)
             } catch (e: Exception) {
+                Log.e("UsageSync", "Hata: ${e.message}")
                 _state.value = State(isLoading = false, error = e.message)
             }
         }
