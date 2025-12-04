@@ -9,7 +9,7 @@ class FailoverInterceptor : Interceptor {
 
     // Senin IP Adreslerin
     private val LOCAL_URL = "http://192.168.1.5:8000/api/"
-    private val TAILSCALE_URL = "http://100.x.y.z:8000/api/" // Buraya kendi Tailscale IP'ni yaz
+    private val TAILSCALE_URL = "http://100.103.29.117:8000/api/" // Buraya kendi Tailscale IP'ni yaz
 
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()

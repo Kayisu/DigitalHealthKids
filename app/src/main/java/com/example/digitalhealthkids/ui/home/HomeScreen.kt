@@ -108,7 +108,7 @@ fun HomeScreen(
                                 onDaySelected = viewModel::selectDay,
                                 onViewDetailsClick = onNavigateToDetail
                             )
-                            1 -> TopAppsPage(dashboard)
+                            1 -> AppsPage(userId = userId, viewModel = viewModel)
                             2 -> RulesPage(dashboard)
                         }
                     }

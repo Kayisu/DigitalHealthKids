@@ -18,6 +18,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
 import java.util.concurrent.TimeUnit
+import com.example.digitalhealthkids.core.network.policy.PolicyApi
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -36,6 +37,11 @@ object AppModule {
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
+
+    @Provides
+    @Singleton
+    fun providePolicyApi(retrofit: Retrofit): PolicyApi =
+        retrofit.create(PolicyApi::class.java)
 
     @Provides
     @Singleton

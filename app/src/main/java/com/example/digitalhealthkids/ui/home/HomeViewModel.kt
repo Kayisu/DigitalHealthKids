@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.*
+import com.example.digitalhealthkids.core.network.policy.PolicyApi
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.core.network.usage.UsageReportRequestDto
 import com.example.digitalhealthkids.core.network.usage.readUsageEventsForRange
@@ -15,20 +16,33 @@ import com.example.digitalhealthkids.data.worker.UsageSyncWorker
 import com.example.digitalhealthkids.domain.usage.DashboardData
 import com.example.digitalhealthkids.domain.usage.UsageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import androidx.core.content.edit
+import com.example.digitalhealthkids.core.network.policy.ToggleBlockRequest
+
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val usageRepository: UsageRepository,
-    private val usageApi: UsageApi
+    private val usageApi: UsageApi,
+    private val policyApi: PolicyApi,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
+    data class AppUiModel(
+        val packageName: String,
+        val appName: String,
+        val averageMinutes: Int,
+        val isBlocked: Boolean
+    )
     data class State(
         val isLoading: Boolean = true,
         val data: DashboardData? = null,
@@ -43,6 +57,74 @@ class HomeViewModel @Inject constructor(
 
     fun selectDay(i: Int) {
         selectedDay = i
+    }
+
+    // Yasaklı Uygulamalar Listesi (Anlık Takip İçin)
+    private val _blockedPackages = MutableStateFlow<Set<String>>(emptySet())
+    val blockedPackages = _blockedPackages.asStateFlow()
+
+    // Uygulama Listesi (UI için hazır veri)
+    private val _appList = MutableStateFlow<List<AppUiModel>>(emptyList())
+    val appList = _appList.asStateFlow()
+
+    // Veriyi analiz edip listeyi hazırlar
+    fun calculateAppStats() {
+        val dashboard = state.value.data ?: return
+        val currentBlocked = _blockedPackages.value
+
+        // 1. Tüm haftanın verilerini düzleştir
+        val allUsage = dashboard.weeklyBreakdown.flatMap { it.apps }
+
+        // 2. Pakete göre grupla ve ortalama al
+        val grouped = allUsage.groupBy { it.packageName }
+
+        val uiModels = grouped.map { (pkg, usages) ->
+            val totalMinutes = usages.sumOf { it.minutes }
+            // Veri kaç günlükse ona böl (basitçe 7 diyelim veya gün sayısına böl)
+            val avg = totalMinutes / 7
+            val name = usages.firstOrNull()?.appName ?: "Bilinmeyen Uygulama"
+
+            AppUiModel(
+                packageName = pkg,
+                appName = name,
+                averageMinutes = avg,
+                isBlocked = currentBlocked.contains(pkg)
+            )
+        }.sortedByDescending { it.averageMinutes } // En çok kullanılan en üstte
+
+        _appList.value = uiModels
+    }
+
+    // Bloklama Butonuna Basılınca
+    fun toggleAppBlock(userId: String, packageName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. ÖNCE LOCAL: Anında UI tepkisi ve Servis güncellemesi (Optimistic Update)
+            val currentSet = _blockedPackages.value.toMutableSet()
+            if (currentSet.contains(packageName)) {
+                currentSet.remove(packageName)
+            } else {
+                currentSet.add(packageName)
+            }
+
+            // State güncelle (UI tetiklenir)
+            _blockedPackages.value = currentSet
+            // Listeyi tekrar hesapla ki butonun rengi değişsin
+            calculateAppStats()
+
+            // Servis için kaydet
+            context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putStringSet("blocked_packages", currentSet)
+                .apply()
+
+            // 2. SONRA BACKEND: Kalıcı hale getir
+            try {
+                policyApi.toggleBlock(ToggleBlockRequest(userId, packageName))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Hata olursa rollback yapılabilir (MVP için pas geçiyoruz)
+            }
+        }
     }
 
     fun syncUsageHistory(context: Context, userId: String, deviceId: String) {
@@ -67,11 +149,11 @@ class HomeViewModel @Inject constructor(
                     // 2. "İLK AÇILIŞ" KONTROLÜ
                     // Eğer dashboard boş geldiyse veya haftalık veri eksikse -> İLK KURULUM DEMEKTİR.
                     // O zaman son 7 günü tara. Değilse sadece bugünü (0) tara.
-                    val daysToSync = if (currentDashboard == null || currentDashboard.weeklyBreakdown.isEmpty()) {
-                        Log.d("UsageSync", "İlk kurulum veya boş veri: Son 7 gün taranıyor...")
-                        6 // 0..6 toplam 7 gün
+                    val daysToSync = if (currentDashboard == null || currentDashboard.weeklyBreakdown.size < 7) {
+                        Log.d("UsageSync", "Haftalık veri eksik (${currentDashboard?.weeklyBreakdown?.size ?: 0} gün var). Geçmiş taranıyor...")
+                        6 // Son 7 günü (0..6) tara
                     } else {
-                        Log.d("UsageSync", "Rutin güncelleme: Sadece bugün taranıyor...")
+                        Log.d("UsageSync", "Haftalık veri tam. Sadece bugün taranıyor...")
                         0 // Sadece bugün
                     }
 
@@ -101,16 +183,39 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                 }
+
             } catch (e: Exception) {
                 Log.e("UsageSync", "Hata: ${e.message}")
                 if (_state.value.data == null) {
                     _state.value = State(isLoading = false, error = e.message)
                 }
             }
+            fetchAndSavePolicy(userId)
         }
     }
 
-    // ... scheduleBackgroundSync aynı kalabilir ...
+    private suspend fun fetchAndSavePolicy(userId: String) {
+        try {
+            // 1. Backend'den kuralları çek
+            val policyResponse = policyApi.getCurrentPolicy(userId)
+
+            // 2. Yasaklı listesini al
+            val blockedApps = policyResponse.blockedApps.toSet()
+            _blockedPackages.value = blockedApps
+            calculateAppStats() // Listeyi güncelle
+
+            // 3. SharedPreferences'a kaydet (Servis buradan okuyacak)
+            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            prefs.edit {
+                putStringSet("blocked_packages", blockedApps)
+            }
+
+        } catch (e: Exception) {
+            // Log hatası, ama UI'ı bozma
+            e.printStackTrace()
+        }
+    }
+
     fun scheduleBackgroundSync(context: Context) {
         val syncRequest = PeriodicWorkRequestBuilder<UsageSyncWorker>(
             15, TimeUnit.MINUTES
