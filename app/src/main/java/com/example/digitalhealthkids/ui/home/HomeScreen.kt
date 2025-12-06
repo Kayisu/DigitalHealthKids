@@ -16,10 +16,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.digitalhealthkids.domain.usage.DashboardData
 import com.example.digitalhealthkids.ui.home.components.*
+import com.example.digitalhealthkids.ui.policy.PolicyScreen // 🔥 Policy ekranını import et
 import kotlinx.coroutines.launch
 
+// BottomNavItem data class'ı aynı kalabilir...
 data class BottomNavItem(
     val label: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector
@@ -108,35 +109,12 @@ fun HomeScreen(
                                 onDaySelected = viewModel::selectDay,
                                 onViewDetailsClick = onNavigateToDetail
                             )
-                            1 -> AppsPage(userId = userId, viewModel = viewModel)
-                            2 -> RulesPage(dashboard)
+                            1 -> AppsPage(dashboard)
+                            2 -> PolicyScreen(userId = userId)
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TopAppsPage(dashboard: DashboardData) {
-    val allApps = dashboard.weeklyBreakdown.flatMap { it.apps }
-    val mergedApps = allApps
-        .groupBy { it.packageName }
-        .map { (_, list) -> list.first().copy(minutes = list.sumOf { it.minutes }) }
-        .sortedByDescending { it.minutes }
-        .take(15)
-
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("En Çok Kullanılanlar", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-        WeeklyTopAppsCompactCard(mergedApps)
-    }
-}
-
-@Composable
-private fun RulesPage(dashboard: DashboardData) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Limitler ve Kurallar", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-        WeeklyRulesCompactCard(dashboard)
     }
 }

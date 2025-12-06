@@ -1,5 +1,6 @@
 package com.example.digitalhealthkids.core.di
 
+import android.content.Context
 import com.example.digitalhealthkids.core.network.AuthApi
 import com.example.digitalhealthkids.core.network.FailoverInterceptor
 import com.example.digitalhealthkids.core.network.NetworkConstants
@@ -19,6 +20,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
 import java.util.concurrent.TimeUnit
 import com.example.digitalhealthkids.core.network.policy.PolicyApi
+import com.example.digitalhealthkids.data.local.PolicyManager
+import com.example.digitalhealthkids.data.policy.PolicyRepositoryImpl
+import com.example.digitalhealthkids.domain.policy.PolicyRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -42,6 +48,18 @@ object AppModule {
     @Singleton
     fun providePolicyApi(retrofit: Retrofit): PolicyApi =
         retrofit.create(PolicyApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePolicyManager(@ApplicationContext context: Context): PolicyManager =
+        PolicyManager(context)
+
+    @Provides
+    @Singleton
+    fun providePolicyRepository(
+        api: PolicyApi,
+        manager: PolicyManager
+    ): PolicyRepository = PolicyRepositoryImpl(api, manager)
 
     @Provides
     @Singleton

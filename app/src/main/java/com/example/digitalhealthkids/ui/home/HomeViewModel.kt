@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import androidx.core.content.edit
 import com.example.digitalhealthkids.core.network.policy.ToggleBlockRequest
+import com.example.digitalhealthkids.data.worker.PolicySyncWorker
 
 
 @HiltViewModel
@@ -113,9 +114,9 @@ class HomeViewModel @Inject constructor(
 
             // Servis için kaydet
             context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .edit()
-                .putStringSet("blocked_packages", currentSet)
-                .apply()
+                .edit {
+                    putStringSet("blocked_packages", currentSet)
+                }
 
             // 2. SONRA BACKEND: Kalıcı hale getir
             try {
@@ -231,6 +232,18 @@ class HomeViewModel @Inject constructor(
             "UsageSyncWork",
             ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
+        )
+
+        val policyRequest = PeriodicWorkRequestBuilder<PolicySyncWorker>(
+            15, TimeUnit.MINUTES
+        ).setConstraints(
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        ).build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "PolicySyncWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            policyRequest
         )
     }
 }

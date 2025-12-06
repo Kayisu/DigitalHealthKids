@@ -3,6 +3,7 @@ package com.example.digitalhealthkids.core.network.policy
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 // Request DTO
@@ -17,4 +18,10 @@ interface PolicyApi {
 
     @POST("policy/toggle-block")
     suspend fun toggleBlock(@Body body: ToggleBlockRequest): PolicyResponseDto
+
+    @PUT("policy/settings")
+    suspend fun updatePolicySettings(
+        @Query("user_id") userId: String,
+        @Body body: PolicySettingsRequestDto
+    ): PolicyResponseDto
 }

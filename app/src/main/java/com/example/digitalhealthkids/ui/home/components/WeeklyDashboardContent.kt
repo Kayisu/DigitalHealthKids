@@ -56,10 +56,7 @@ fun WeeklyDashboardContent(
                             text = "Toplam Süre: ${formatDuration(stat.totalMinutes)}",
                             style = MaterialTheme.typography.bodyLarge
                         )
-
                         Spacer(Modifier.height(16.dp))
-
-                        // 🔥 Buton
                         Button(
                             onClick = { onViewDetailsClick(selectedDay) },
                             modifier = Modifier.fillMaxWidth(),
