@@ -30,12 +30,14 @@ import com.example.digitalhealthkids.ui.home.HomeViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DailyDetailScreen(
-    userId: String,   // 🔥 GÜNCELLENDİ: childId -> userId
-    deviceId: String, // 🔥 EKLENDİ
+    userId: String,
+    deviceId: String,
     initialDayIndex: Int,
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
@@ -43,7 +45,6 @@ fun DailyDetailScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
-    // 🔥 Sayfa açılınca veriyi yeniden çek
     LaunchedEffect(userId) {
         if (state.data == null) {
             viewModel.syncUsageHistory(context, userId, deviceId)
@@ -182,7 +183,13 @@ fun DailyContentPage(stat: DailyStat) {
 }
 
 @Composable
-fun AppUsageRowItem(name: String, packageName: String, minutes: Int) {
+fun AppUsageRowItem(
+    name: String,
+    packageName: String,
+    minutes: Int,
+    isBlocked: Boolean = false,
+    onBlockToggle: ((Boolean) -> Unit)? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -192,23 +199,47 @@ fun AppUsageRowItem(name: String, packageName: String, minutes: Int) {
     ) {
         AppIcon(packageName = packageName, modifier = Modifier.size(48.dp))
         Spacer(modifier = Modifier.width(16.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = name,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
+            // Eğer engelliyse altına minik not düşebiliriz
+            if (isBlocked) {
+                Text(
+                    text = "Engellendi",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
-        Surface(
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text(
-                text = formatDuration(minutes),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+
+        if (onBlockToggle != null) {
+            Switch(
+                checked = isBlocked,
+                onCheckedChange = onBlockToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.error,
+                    checkedTrackColor = MaterialTheme.colorScheme.errorContainer,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.secondary,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             )
+        } else {
+            // Sadece gösterim modu (Eski hali)
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = formatDuration(minutes),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
         }
     }
 }

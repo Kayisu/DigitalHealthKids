@@ -35,6 +35,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val appList by viewModel.appList.collectAsState()
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -109,7 +110,12 @@ fun HomeScreen(
                                 onDaySelected = viewModel::selectDay,
                                 onViewDetailsClick = onNavigateToDetail
                             )
-                            1 -> AppsPage(dashboard)
+                            1 -> AppsPage(
+                                appList = appList,
+                                onToggleBlock = { pkg ->
+                                    viewModel.toggleAppBlock(userId, pkg)
+                                }
+                            )
                             2 -> PolicyScreen(userId = userId)
                         }
                     }
