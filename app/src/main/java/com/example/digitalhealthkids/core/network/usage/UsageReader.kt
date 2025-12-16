@@ -33,8 +33,6 @@ fun resolveAppName(context: Context, packageName: String): String {
         packageName
     }
 }
-
-// 🔥 Launcher ve Sistem Uygulamalarını Temizleme
 fun isUserApp(context: Context, packageName: String): Boolean {
     if (packageName == context.packageName) return false
 
@@ -62,12 +60,6 @@ fun isUserApp(context: Context, packageName: String): Boolean {
     }
 }
 
-/**
- * 🔥 JOHNNY SILVERHAND METHOD
- * Tek tek gün hesaplamak yerine, son 7 günü komple çekip,
- * "Timestamp -> Tarih Stringi" dönüşümünü burada yaparak
- * kesin ve net bir gruplama yapıyoruz.
- */
 fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto> {
     if (!hasUsagePermission(context)) return emptyList()
 
@@ -134,4 +126,32 @@ fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto
     }
 
     return resultList
+}
+
+fun getTodayTotalUsageMillis(context: Context): Long {
+    if (!hasUsagePermission(context)) return 0L
+
+    val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+    val calendar = Calendar.getInstance()
+
+    // Bugünü belirle (Gece 00:00)
+    calendar.set(Calendar.HOUR_OF_DAY, 0)
+    calendar.set(Calendar.MINUTE, 0)
+    calendar.set(Calendar.SECOND, 0)
+    val startTime = calendar.timeInMillis
+    val endTime = System.currentTimeMillis()
+
+    // Günlük veriyi çek
+    val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
+
+    var totalMillis = 0L
+    if (stats != null) {
+        for (usageStat in stats) {
+            // Sadece kullanıcı uygulamalarını topla (Launcher, Sistem UI hariç)
+            if (usageStat.totalTimeInForeground > 0 && isUserApp(context, usageStat.packageName)) {
+                totalMillis += usageStat.totalTimeInForeground
+            }
+        }
+    }
+    return totalMillis
 }
