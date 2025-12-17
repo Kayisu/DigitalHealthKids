@@ -13,11 +13,15 @@ import com.example.digitalhealthkids.core.util.formatDuration
 import com.example.digitalhealthkids.domain.usage.DashboardData
 
 @Composable
-fun WeeklyHeroCard(data: DashboardData) {
+fun WeeklyHeroCard(
+    data: DashboardData,
+    dailyLimit: Int? // 🔥 Parametre olarak alalım
+) {
     val weeklyTotal = data.weeklyBreakdown.sumOf { it.totalMinutes }
-    val weeklyAverage = if (data.weeklyBreakdown.isNotEmpty())
-        weeklyTotal / data.weeklyBreakdown.size
-    else 0
+    val weeklyAverage = if (data.weeklyBreakdown.isNotEmpty()) weeklyTotal / data.weeklyBreakdown.size else 0
+
+    // Hedef metni oluştur
+    val goalText = if (dailyLimit != null) "${dailyLimit}dk" else "Limitsiz"
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -35,11 +39,30 @@ fun WeeklyHeroCard(data: DashboardData) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Text(
-                text = data.userName,
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = data.userName,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // 🔥 Hedef göstergesi
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Hedef: $goalText",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 

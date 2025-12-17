@@ -8,15 +8,15 @@ data class BedtimeDto(
 )
 
 data class PolicySettingsRequestDto(
-    @SerializedName("daily_limit_minutes") val dailyLimitMinutes: Int,
-    @SerializedName("bedtime_start") val bedtimeStart: String, // "21:30"
-    @SerializedName("bedtime_end") val bedtimeEnd: String,     // "07:00"
+    @SerializedName("daily_limit_minutes") val dailyLimitMinutes: Int?,
+    @SerializedName("bedtime_start") val bedtimeStart: String?,
+    @SerializedName("bedtime_end") val bedtimeEnd: String?,
     @SerializedName("weekend_relax_pct") val weekendRelaxPct: Int
 )
 
 data class PolicyResponseDto(
-    @SerializedName("user_id") val userId: String, // 🔥 Refactor
-    @SerializedName("daily_limit_minutes") val dailyLimitMinutes: Int,
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("daily_limit_minutes") val dailyLimitMinutes: Int?,
     @SerializedName("blocked_apps") val blockedApps: List<String>,
-    val bedtime: BedtimeDto?
+    val bedtime: BedtimeDto? // Zaten nullable idi, sorun yok
 )

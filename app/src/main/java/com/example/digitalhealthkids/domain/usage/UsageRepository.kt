@@ -17,7 +17,8 @@ data class DashboardData(
     val todayTotalMinutes: Int,
     val weeklyBreakdown: List<DailyStat>,
     val bedtimeStart: String?,
-    val bedtimeEnd: String?
+    val bedtimeEnd: String?,
+    val dailyLimitMinutes: Int? = null
 )
 
 interface UsageRepository {

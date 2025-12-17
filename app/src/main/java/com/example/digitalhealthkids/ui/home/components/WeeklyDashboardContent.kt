@@ -13,9 +13,10 @@ import com.example.digitalhealthkids.core.util.formatDuration
 @Composable
 fun WeeklyDashboardContent(
     dashboard: DashboardData,
+    dailyLimit: Int?,
     selectedDay: Int,
     onDaySelected: (Int) -> Unit,
-    onViewDetailsClick: (Int) -> Unit // 🔥 Tıklama parametresi
+    onViewDetailsClick: (Int) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -24,7 +25,7 @@ fun WeeklyDashboardContent(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // 1. Hero Kartı
-        item { WeeklyHeroCard(dashboard) }
+        item { WeeklyHeroCard(dashboard, dailyLimit) }
 
         // 2. Grafik
         item {

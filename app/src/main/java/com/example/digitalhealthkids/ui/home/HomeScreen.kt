@@ -39,6 +39,7 @@ fun HomeScreen(
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val currentLimit by viewModel.currentLimit.collectAsState()
 
     LaunchedEffect(userId, deviceId) {
         viewModel.syncUsageHistory(context, userId, deviceId)
@@ -108,6 +109,7 @@ fun HomeScreen(
                                 dashboard = dashboard,
                                 selectedDay = viewModel.selectedDay,
                                 onDaySelected = viewModel::selectDay,
+                                dailyLimit = currentLimit,
                                 onViewDetailsClick = onNavigateToDetail
                             )
                             1 -> AppsPage(

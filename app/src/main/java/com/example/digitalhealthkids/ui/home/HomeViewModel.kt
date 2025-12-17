@@ -194,25 +194,34 @@ class HomeViewModel @Inject constructor(
             fetchAndSavePolicy(userId)
         }
     }
+    private val _currentLimit = MutableStateFlow<Int?>(null)
+    val currentLimit = _currentLimit.asStateFlow()
 
     private suspend fun fetchAndSavePolicy(userId: String) {
         try {
             // 1. Backend'den kuralları çek
-            val policyResponse = policyApi.getCurrentPolicy(userId)
+            val policy = policyApi.getCurrentPolicy(userId)
+            _currentLimit.value = policy.dailyLimitMinutes
 
-            // 2. Yasaklı listesini al
-            val blockedApps = policyResponse.blockedApps.toSet()
+            // 2. Yasaklı listesini al ve State'i güncelle
+            val blockedApps = policy.blockedApps.toSet()
             _blockedPackages.value = blockedApps
-            calculateAppStats() // Listeyi güncelle
+            calculateAppStats()
 
-            // 3. SharedPreferences'a kaydet (Servis buradan okuyacak)
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             prefs.edit {
+                // Bloklananlar
                 putStringSet("blocked_packages", blockedApps)
+
+                // Günlük Limit (Null ise -1 kaydedelim ki "yok" olduğunu anlayalım)
+                putInt("daily_limit", policy.dailyLimitMinutes ?: -1)
+
+                // Uyku Saatleri (Null ise sil)
+                putString("bedtime_start", policy.bedtime?.start)
+                putString("bedtime_end", policy.bedtime?.end)
             }
 
         } catch (e: Exception) {
-            // Log hatası, ama UI'ı bozma
             e.printStackTrace()
         }
     }
