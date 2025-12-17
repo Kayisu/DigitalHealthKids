@@ -4,10 +4,11 @@ import com.google.gson.annotations.SerializedName
 import com.example.digitalhealthkids.domain.usage.*
 
 data class UsageEventDto(
-    @SerializedName("app_package") val appPackage: String,
-    @SerializedName("app_name") val appName: String?,
-    @SerializedName("date_str") val dateStr: String, // 🔥 YENİ
-    @SerializedName("total_seconds") val totalSeconds: Int
+    @SerializedName("package_name") val packageName: String,
+    @SerializedName("app_name") val appName: String,
+    @SerializedName("timestamp_start") val timestampStart: Long,
+    @SerializedName("timestamp_end") val timestampEnd: Long,
+    @SerializedName("duration_seconds") val durationSeconds: Int
 )
 
 data class UsageReportRequestDto(

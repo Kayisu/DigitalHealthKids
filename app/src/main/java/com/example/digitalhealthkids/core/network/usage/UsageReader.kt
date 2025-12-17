@@ -1,6 +1,7 @@
 package com.example.digitalhealthkids.core.network.usage
 
 import android.app.AppOpsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
@@ -65,66 +66,49 @@ fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto
 
     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
-    // 1. Sorgu Aralığını Belirle
-    // daysBack = 6 ise, son 7 günü (Bugün dahil) çek.
-    // daysBack = 0 ise, sadece bugünü (Gece 00:00'dan şu ana) çek.
+    val endTime = System.currentTimeMillis()
     val cal = Calendar.getInstance()
-    val endTime = System.currentTimeMillis() // Şu an
-
-    // Başlangıç: daysBack kadar geriye git, o günün 00:00'ına in
     cal.add(Calendar.DAY_OF_YEAR, -daysBack)
     cal.set(Calendar.HOUR_OF_DAY, 0)
-    cal.set(Calendar.MINUTE, 0)
-    cal.set(Calendar.SECOND, 0)
-    cal.set(Calendar.MILLISECOND, 0)
     val startTime = cal.timeInMillis
 
-    // 2. Google'dan INTERVAL_DAILY olarak iste
-    // Bu, bize o aralıktaki tüm günlerin parçalarını verir.
-    val usageStatsList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
+    val events = usm.queryEvents(startTime, endTime)
+    val event = UsageEvents.Event()
 
-    if (usageStatsList.isNullOrEmpty()) return emptyList()
-
-    // 3. Veriyi İşle: (Tarih Stringi -> Paket Adı -> Toplam Süre)
-    val dailyMap = mutableMapOf<String, MutableMap<String, Long>>()
-
-    for (stat in usageStatsList) {
-        // Eğer süre 0 ise hiç uğraşma
-        if (stat.totalTimeInForeground < 1000) continue
-
-        // 🔥 KRİTİK NOKTA: Google'ın verdiği zaman damgasını, TELEFONUN yerel saatine göre tarihe çevir.
-        // Böylece telefon ne gösteriyorsa biz de onu görürüz.
-        val dateString = dateFormat.format(Date(stat.firstTimeStamp))
-
-        // Gelecek tarihli hatalı verileri ele (System saati kaymaları)
-        if (stat.firstTimeStamp > System.currentTimeMillis()) continue
-
-        // Bu tarih için map'i hazırla
-        val packageMap = dailyMap.getOrPut(dateString) { mutableMapOf() }
-
-        // Paketi bul ve süreyi ekle (Eğer aynı gün için birden fazla parça varsa topla)
-        val currentTotal = packageMap.getOrDefault(stat.packageName, 0L)
-        packageMap[stat.packageName] = currentTotal + stat.totalTimeInForeground
-    }
-
-    // 4. DTO'ya Dönüştür
     val resultList = mutableListOf<UsageEventDto>()
+    val startMap = mutableMapOf<String, Long>()
 
-    dailyMap.forEach { (dateStr, pkgMap) ->
-        pkgMap.forEach { (pkgName, totalTimeMillis) ->
-            if (isUserApp(context, pkgName)) {
-                resultList.add(
-                    UsageEventDto(
-                        appPackage = pkgName,
-                        appName = resolveAppName(context, pkgName),
-                        dateStr = dateStr, // "2025-12-03"
-                        totalSeconds = (totalTimeMillis / 1000).toInt()
-                    )
-                )
+    while (events.hasNextEvent()) {
+        events.getNextEvent(event)
+
+        val pkg = event.packageName
+        if (!isUserApp(context, pkg)) continue
+
+        when (event.eventType) {
+            UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                startMap[pkg] = event.timeStamp
+            }
+            UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                val start = startMap.remove(pkg)
+                if (start != null) {
+                    val end = event.timeStamp
+                    val duration = (end - start) / 1000L
+
+                    if (duration > 0) {
+                        resultList.add(
+                            UsageEventDto(
+                                packageName = pkg,
+                                appName = resolveAppName(context, pkg), // 🔥 BURADA EKLİYORUZ
+                                timestampStart = start,
+                                timestampEnd = end,
+                                durationSeconds = duration.toInt()
+                            )
+                        )
+                    }
+                }
             }
         }
     }
-
     return resultList
 }
 
