@@ -60,199 +60,127 @@ class HomeViewModel @Inject constructor(
         selectedDay = i
     }
 
-    // Yasaklı Uygulamalar Listesi (Anlık Takip İçin)
     private val _blockedPackages = MutableStateFlow<Set<String>>(emptySet())
     val blockedPackages = _blockedPackages.asStateFlow()
 
-    // Uygulama Listesi (UI için hazır veri)
     private val _appList = MutableStateFlow<List<AppUiModel>>(emptyList())
     val appList = _appList.asStateFlow()
 
-    // Veriyi analiz edip listeyi hazırlar
     fun calculateAppStats() {
-        val dashboard = state.value.data ?: return
+        val dashboard = state.value.data
+        if (dashboard == null) {
+            _appList.value = emptyList()
+            return
+        }
+
         val currentBlocked = _blockedPackages.value
-
-        // 1. Tüm haftanın verilerini düzleştir
         val allUsage = dashboard.weeklyBreakdown.flatMap { it.apps }
-
-        // 2. Pakete göre grupla ve ortalama al
         val grouped = allUsage.groupBy { it.packageName }
 
         val uiModels = grouped.map { (pkg, usages) ->
             val totalMinutes = usages.sumOf { it.minutes }
-            // Veri kaç günlükse ona böl (basitçe 7 diyelim veya gün sayısına böl)
+            // Ortalama için 7'ye bölmek yerine, verinin olduğu gün sayısına bölmek daha doğru olabilir,
+            // ama şimdilik basit tutalım.
             val avg = totalMinutes / 7
             val name = usages.firstOrNull()?.appName ?: "Bilinmeyen Uygulama"
-
             AppUiModel(
                 packageName = pkg,
                 appName = name,
                 averageMinutes = avg,
                 isBlocked = currentBlocked.contains(pkg)
             )
-        }.sortedByDescending { it.averageMinutes } // En çok kullanılan en üstte
-
+        }.sortedByDescending { it.averageMinutes }
         _appList.value = uiModels
     }
 
-    // Bloklama Butonuna Basılınca
     fun toggleAppBlock(userId: String, packageName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. ÖNCE LOCAL: Anında UI tepkisi ve Servis güncellemesi (Optimistic Update)
             val currentSet = _blockedPackages.value.toMutableSet()
-            if (currentSet.contains(packageName)) {
-                currentSet.remove(packageName)
-            } else {
-                currentSet.add(packageName)
-            }
-
-            // State güncelle (UI tetiklenir)
+            if (currentSet.contains(packageName)) currentSet.remove(packageName) else currentSet.add(packageName)
             _blockedPackages.value = currentSet
-            // Listeyi tekrar hesapla ki butonun rengi değişsin
             calculateAppStats()
 
-            // Servis için kaydet
             context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .edit {
-                    putStringSet("blocked_packages", currentSet)
-                }
+                .edit { putStringSet("blocked_packages", currentSet) }
 
-            // 2. SONRA BACKEND: Kalıcı hale getir
             try {
                 policyApi.toggleBlock(ToggleBlockRequest(userId, packageName))
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Hata olursa rollback yapılabilir (MVP için pas geçiyoruz)
             }
         }
     }
 
     fun syncUsageHistory(context: Context, userId: String, deviceId: String) {
         viewModelScope.launch {
-            // Sadece ilk başta loading göster, veri varsa gösterme (kullanıcıyı rahatsız etme)
-            if (_state.value.data == null) {
-                _state.value = State(isLoading = true)
-            }
+            if (_state.value.data == null) _state.value = State(isLoading = true)
+
+            // Politikaları ve verileri eş zamanlı olarak, birbirini beklemeden başlat
+            launch { fetchAndSavePolicy(userId) }
 
             try {
                 withContext(Dispatchers.IO) {
-                    // 1. ÖNCE DATABASE'DEKİ MEVCUT VERİYİ ÇEK (Hızlı Gösterim)
-                    var currentDashboard = try {
-                        usageRepository.getDashboard(userId)
-                    } catch (e: Exception) { null }
-
-                    // Eğer data geldiyse hemen ekrana bas
+                    // 1. Önce lokal veriyi göster (varsa)
+                    var currentDashboard = usageRepository.getDashboard(userId)
                     if (currentDashboard != null) {
                         _state.value = State(isLoading = false, data = currentDashboard)
+                        calculateAppStats()
                     }
 
-                    // 2. "İLK AÇILIŞ" KONTROLÜ
-                    // Eğer dashboard boş geldiyse veya haftalık veri eksikse -> İLK KURULUM DEMEKTİR.
-                    // O zaman son 7 günü tara. Değilse sadece bugünü (0) tara.
-                    val daysToSync = if (currentDashboard == null || currentDashboard.weeklyBreakdown.size < 7) {
-                        Log.d("UsageSync", "Haftalık veri eksik (${currentDashboard?.weeklyBreakdown?.size ?: 0} gün var). Geçmiş taranıyor...")
-                        6 // Son 7 günü (0..6) tara
-                    } else {
-                        Log.d("UsageSync", "Haftalık veri tam. Sadece bugün taranıyor...")
-                        0 // Sadece bugün
-                    }
-
-                    // 3. ANDROID'DEN VERİYİ OKU
+                    // 2. Android'den temiz ve toplanmış veriyi oku
+                    val daysToSync = if (currentDashboard == null || currentDashboard.weeklyBreakdown.size < 7) 6 else 0
                     val events = readUsageEventsForRange(context, daysToSync)
 
-                    // 4. BACKEND'E GÖNDER (Varsa)
+                    // 3. Temiz veriyi sunucuya gönder
                     if (events.isNotEmpty()) {
-                        val body = UsageReportRequestDto(
-                            userId = userId,
-                            deviceId = deviceId,
-                            events = events
-                        )
+                        val body = UsageReportRequestDto(userId, deviceId, events)
                         usageApi.reportUsage(body)
-                        Log.d("UsageSync", "Backend güncellendi.")
 
-                        // 5. GÜNCEL VERİYİ TEKRAR ÇEK (Senkronizasyon bitti, son hali al)
+                        // 4. Sunucudan gelen son halini çek ve UI'ı güncelle
                         currentDashboard = usageRepository.getDashboard(userId)
                         _state.value = State(isLoading = false, data = currentDashboard)
+                        calculateAppStats() // EN ÖNEMLİ ÇAĞRI: Liste burada dolacak
                     } else {
-                        // Gönderilecek veri yoksa ve elimizde dashboard varsa yüklemeyi bitir
-                        if (_state.value.data != null) {
-                            _state.value = _state.value.copy(isLoading = false)
-                        } else {
-                            // Hem veri yok hem dashboard yoksa (yeni gün, hiç kullanım yok)
-                            _state.value = State(isLoading = false, data = null) // veya boş dashboard
-                        }
+                         // Eğer gönderilecek yeni bir şey yoksa bile yükleniyor durumunu kapat
+                        _state.value = _state.value.copy(isLoading = false)
                     }
                 }
-
             } catch (e: Exception) {
                 Log.e("UsageSync", "Hata: ${e.message}")
                 if (_state.value.data == null) {
                     _state.value = State(isLoading = false, error = e.message)
                 }
             }
-            fetchAndSavePolicy(userId)
         }
     }
+
     private val _currentLimit = MutableStateFlow<Int?>(null)
     val currentLimit = _currentLimit.asStateFlow()
 
     private suspend fun fetchAndSavePolicy(userId: String) {
         try {
-            // 1. Backend'den kuralları çek
             val policy = policyApi.getCurrentPolicy(userId)
             _currentLimit.value = policy.dailyLimitMinutes
-
-            // 2. Yasaklı listesini al ve State'i güncelle
-            val blockedApps = policy.blockedApps.toSet()
-            _blockedPackages.value = blockedApps
+            _blockedPackages.value = policy.blockedApps.toSet()
             calculateAppStats()
 
-            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            prefs.edit {
-                // Bloklananlar
-                putStringSet("blocked_packages", blockedApps)
-
-                // Günlük Limit (Null ise -1 kaydedelim ki "yok" olduğunu anlayalım)
+            context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit {
+                putStringSet("blocked_packages", policy.blockedApps.toSet())
                 putInt("daily_limit", policy.dailyLimitMinutes ?: -1)
-
-                // Uyku Saatleri (Null ise sil)
                 putString("bedtime_start", policy.bedtime?.start)
                 putString("bedtime_end", policy.bedtime?.end)
             }
-
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
     fun scheduleBackgroundSync(context: Context) {
-        val syncRequest = PeriodicWorkRequestBuilder<UsageSyncWorker>(
-            15, TimeUnit.MINUTES
-        )
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            )
-            .build()
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val usageRequest = PeriodicWorkRequestBuilder<UsageSyncWorker>(15, TimeUnit.MINUTES).setConstraints(constraints).build()
+        val policyRequest = PeriodicWorkRequestBuilder<PolicySyncWorker>(15, TimeUnit.MINUTES).setConstraints(constraints).build()
 
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "UsageSyncWork",
-            ExistingPeriodicWorkPolicy.KEEP,
-            syncRequest
-        )
-
-        val policyRequest = PeriodicWorkRequestBuilder<PolicySyncWorker>(
-            15, TimeUnit.MINUTES
-        ).setConstraints(
-            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-        ).build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "PolicySyncWork",
-            ExistingPeriodicWorkPolicy.KEEP,
-            policyRequest
-        )
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork("UsageSyncWork", ExistingPeriodicWorkPolicy.KEEP, usageRequest)
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork("PolicySyncWork", ExistingPeriodicWorkPolicy.KEEP, policyRequest)
     }
 }

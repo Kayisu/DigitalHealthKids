@@ -11,7 +11,8 @@ data class PolicySettingsRequestDto(
     @SerializedName("daily_limit_minutes") val dailyLimitMinutes: Int?,
     @SerializedName("bedtime_start") val bedtimeStart: String?,
     @SerializedName("bedtime_end") val bedtimeEnd: String?,
-    @SerializedName("weekend_relax_pct") val weekendRelaxPct: Int
+    @SerializedName("weekend_relax_pct") val weekendRelaxPct: Int,
+    @SerializedName("blocked_packages") val blockedPackages: List<String>? = null
 )
 
 data class PolicyResponseDto(

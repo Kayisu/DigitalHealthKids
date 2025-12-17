@@ -28,24 +28,30 @@ data class AppUsageDto(
 data class DailyStatDto(
     val date: String,
     @SerializedName("total_minutes") val totalMinutes: Int,
-    val apps: List<AppUsageDto>
+    val apps: List<AppUsageDto>? // Null gelebilir
 )
 
 data class DashboardDto(
     @SerializedName("user_name") val userName: String,
     @SerializedName("today_total_minutes") val todayTotalMinutes: Int,
-    @SerializedName("weekly_breakdown") val weeklyBreakdown: List<DailyStatDto>,
+    @SerializedName("weekly_breakdown") val weeklyBreakdown: List<DailyStatDto>?, // Null gelebilir
     @SerializedName("bedtime_start") val bedtimeStart: String?,
     @SerializedName("bedtime_end") val bedtimeEnd: String?
 )
 
 // Mappers
 fun AppUsageDto.toDomain() = AppUsageItem(appName, packageName, minutes)
-fun DailyStatDto.toDomain() = DailyStat(date, totalMinutes, apps.map { it.toDomain() })
+
+fun DailyStatDto.toDomain() = DailyStat(
+    date,
+    totalMinutes,
+    apps?.map { it.toDomain() } ?: emptyList() // Eğer apps null ise boş liste kullan
+)
+
 fun DashboardDto.toDomain() = DashboardData(
     userName = userName,
     todayTotalMinutes = todayTotalMinutes,
-    weeklyBreakdown = weeklyBreakdown.map { it.toDomain() },
+    weeklyBreakdown = weeklyBreakdown?.map { it.toDomain() } ?: emptyList(), // Eğer weeklyBreakdown null ise boş liste kullan
     bedtimeStart = bedtimeStart,
     bedtimeEnd = bedtimeEnd
 )
