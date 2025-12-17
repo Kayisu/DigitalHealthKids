@@ -33,8 +33,6 @@ fun resolveAppName(context: Context, packageName: String): String {
         packageName
     }
 }
-
-// 🔥 Launcher ve Sistem Uygulamalarını Temizleme
 fun isUserApp(context: Context, packageName: String): Boolean {
     if (packageName == context.packageName) return false
 
@@ -62,12 +60,6 @@ fun isUserApp(context: Context, packageName: String): Boolean {
     }
 }
 
-/**
- * 🔥 JOHNNY SILVERHAND METHOD
- * Tek tek gün hesaplamak yerine, son 7 günü komple çekip,
- * "Timestamp -> Tarih Stringi" dönüşümünü burada yaparak
- * kesin ve net bir gruplama yapıyoruz.
- */
 fun readUsageEventsForRange(context: Context, daysBack: Int): List<UsageEventDto> {
     if (!hasUsagePermission(context)) return emptyList()
 
