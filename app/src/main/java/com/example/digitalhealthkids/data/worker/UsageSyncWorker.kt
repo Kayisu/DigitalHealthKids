@@ -72,9 +72,9 @@ class UsageSyncWorker @AssistedInject constructor(
                 return@withContext Result.failure()
             }
 
-            // Sıcak test için sadece bugünü gönder (0 = bugün). Eğer rahatlarsa geri 1 güne çıkarırız.
-            val rawEvents = readUsageEventsForRange(applicationContext, 0)
-            Log.i("UsageSync", "Raw events read count=${rawEvents.size}")
+            // Geçmiş 1 günü de dahil et (1 = bugün ve dünü kapsar).
+            val rawEvents = readUsageEventsForRange(applicationContext, 1)
+            Log.i("UsageSync", "Raw events read count=${rawEvents.size} (daysBack=1)")
 
             // Gün + paket bazında özetleyerek payload'ı küçült (aynı paket/gün tekrarlarını birleştir).
             val events = aggregateByDayAndPackage(rawEvents)
