@@ -32,17 +32,14 @@ fun HomeScreen(
     onNavigateToAppDetail: (String, String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    // 1. Senin ViewModel'indeki 'state' değişkenini kullanıyoruz (uiState değil)
     val state by viewModel.state.collectAsState()
-
-    // 2. Senin ViewModel'indeki 'appList' değişkenini ayrıca dinliyoruz
     val appList by viewModel.appList.collectAsState()
+    val currentLimit by viewModel.currentLimit.collectAsState() // Dinamik limiti al
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val pagerState = rememberPagerState(pageCount = { 3 })
 
-    // 3. fetchDashboard yerine senin syncUsageHistory fonksiyonunu çağırıyoruz
     LaunchedEffect(userId, deviceId) {
         viewModel.syncUsageHistory(context, userId, deviceId)
     }
@@ -83,16 +80,14 @@ fun HomeScreen(
                     when (page) {
                         0 -> WeeklyDashboardContent(
                             dashboard = state.data!!,
-                            selectedDay = viewModel.selectedDay, // Bu sende var
-                            onDaySelected = { viewModel.selectDay(it) }, // Bu da var
-                            dailyLimit = 120,
+                            selectedDay = viewModel.selectedDay,
+                            onDaySelected = { viewModel.selectDay(it) },
+                            dailyLimit = currentLimit, // Hardcoded değeri dinamik limitle değiştir
                             onViewDetailsClick = onNavigateToDetail
                         )
                         1 -> AppsPage(
-                            // 4. Senin hazırladığın appList'i veriyoruz
                             appList = appList,
                             onAppClick = { app ->
-                                // AppUiModel'inde category alanı yoksa varsayılan gönderelim
                                 onNavigateToAppDetail(app.packageName, app.appName)
                             },
                             onToggleBlock = { pkg ->

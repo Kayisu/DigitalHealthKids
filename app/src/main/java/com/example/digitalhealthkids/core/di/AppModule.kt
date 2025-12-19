@@ -2,7 +2,6 @@ package com.example.digitalhealthkids.core.di
 
 import android.content.Context
 import com.example.digitalhealthkids.core.network.AuthApi
-import com.example.digitalhealthkids.core.network.FailoverInterceptor
 import com.example.digitalhealthkids.core.network.NetworkConstants
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.data.auth.AuthRepositoryImplementation
@@ -24,6 +23,7 @@ import com.example.digitalhealthkids.data.local.PolicyManager
 import com.example.digitalhealthkids.data.policy.PolicyRepositoryImpl
 import com.example.digitalhealthkids.domain.policy.PolicyRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.example.digitalhealthkids.core.network.FailoverInterceptor
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -37,10 +37,9 @@ object AppModule {
         }
 
         return OkHttpClient.Builder()
-            .addInterceptor(FailoverInterceptor())
             .addInterceptor(logging)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
             .build()
     }
 
@@ -65,7 +64,7 @@ object AppModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("http://localhost/api/")
+            .baseUrl("http://192.168.1.5:8000/api/")
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

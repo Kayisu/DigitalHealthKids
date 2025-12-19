@@ -8,8 +8,7 @@ import java.io.IOException
 class FailoverInterceptor : Interceptor {
 
     private val LOCAL_URL = "http://192.168.1.5:8000/api/"
-    //private val TAILSCALE_URL = "http://100.103.29.117:8000/api/"
-    private val TAILSCALE_URL = "http://100.93.229.31/api/"
+    private val TAILSCALE_URL = "http://100.103.29.117:8000/api/"
 
 
 
