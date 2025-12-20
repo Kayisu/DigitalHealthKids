@@ -21,6 +21,28 @@ data class DashboardData(
     val dailyLimitMinutes: Int? = null
 )
 
+data class HourlyUsageDomain(
+    val hour: Int,
+    val minutes: Int
+)
+
+data class SessionUsageDomain(
+    val startedAt: String,
+    val endedAt: String,
+    val minutes: Int
+)
+
+data class AppDetail(
+    val date: String,
+    val packageName: String,
+    val appName: String?,
+    val totalMinutes: Int,
+    val nightMinutes: Int,
+    val hourly: List<HourlyUsageDomain>,
+    val sessions: List<SessionUsageDomain>
+)
+
 interface UsageRepository {
     suspend fun getDashboard(userId: String): DashboardData
+    suspend fun getAppDetail(userId: String, packageName: String, targetDate: String): AppDetail
 }

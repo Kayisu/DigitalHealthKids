@@ -15,4 +15,11 @@ interface UsageApi {
     suspend fun getDashboard(
         @Query("user_id") userId: String // 🔥 Refactor
     ): DashboardDto
+
+    @GET("usage/app_detail")
+    suspend fun getAppDetail(
+        @Query("user_id") userId: String,
+        @Query("package_name") packageName: String,
+        @Query("target_date") targetDate: String
+    ): AppDetailDto
 }

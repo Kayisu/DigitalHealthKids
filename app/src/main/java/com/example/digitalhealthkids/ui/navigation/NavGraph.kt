@@ -51,9 +51,7 @@ fun AppNavGraph(
                     navController.navigate("detail/$userId/$deviceId/$dayIndex")
                 },
                 onNavigateToAppDetail = { packageName, appName ->
-                    // YENİ: Uygulama Detayına Git (Navigasyon Tetikleyici)
-                    // URL içinde veri kaybı olmaması için basit replace yapabiliriz ama şimdilik düz gönderiyoruz.
-                    navController.navigate("app_detail/$packageName/$appName")
+                    navController.navigate("app_detail/$userId/$packageName/$appName")
                 }
             )
         }
@@ -81,22 +79,24 @@ fun AppNavGraph(
 
         // 4. APP DETAIL (YENİ EKLENDİ)
         composable(
-            route = "app_detail/{packageName}/{appName}",
+            route = "app_detail/{userId}/{packageName}/{appName}",
             arguments = listOf(
+                navArgument("userId") { type = NavType.StringType },
                 navArgument("packageName") { type = NavType.StringType },
                 navArgument("appName") { type = NavType.StringType }
             )
         ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
             val packageName = backStackEntry.arguments?.getString("packageName") ?: ""
             val appName = backStackEntry.arguments?.getString("appName") ?: ""
 
-            // ViewModel'i burada alıyoruz ki Dialog açma fonksiyonuna erişebilelim
             val policyViewModel: PolicyViewModel = hiltViewModel()
 
             AppDetailScreen(
+                userId = userId,
                 packageName = packageName,
                 appName = appName,
-                category = "Genel", // Şimdilik sabit, backend güncellenince buraya parametre eklenir
+                category = "Genel",
                 onBackClick = { navController.popBackStack() },
                 onAddPolicy = { pkg, limit ->
                     policyViewModel.addPolicy(pkg, limit)

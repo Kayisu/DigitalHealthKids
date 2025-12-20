@@ -72,9 +72,9 @@ class UsageSyncWorker @AssistedInject constructor(
                 return@withContext Result.failure()
             }
 
-            // Geçmiş 1 günü de dahil et (1 = bugün ve dünü kapsar).
-            val rawEvents = readUsageEventsForRange(applicationContext, 1)
-            Log.i("UsageSync", "Raw events read count=${rawEvents.size} (daysBack=1)")
+            // Şimdilik sadece bugünü gönder (0 = bugün). Geçmiş backfill'i manuel çalıştırırız.
+            val rawEvents = readUsageEventsForRange(applicationContext, 0)
+            Log.i("UsageSync", "Raw events read count=${rawEvents.size} (daysBack=0)")
 
             // Gün + paket bazında özetleyerek payload'ı küçült (aynı paket/gün tekrarlarını birleştir).
             val events = aggregateByDayAndPackage(rawEvents)

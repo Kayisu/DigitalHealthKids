@@ -39,6 +39,27 @@ data class DashboardDto(
     @SerializedName("bedtime_end") val bedtimeEnd: String?
 )
 
+data class HourlyUsageDto(
+    val hour: Int,
+    val minutes: Int
+)
+
+data class SessionUsageDto(
+    @SerializedName("started_at") val startedAt: String,
+    @SerializedName("ended_at") val endedAt: String,
+    val minutes: Int
+)
+
+data class AppDetailDto(
+    val date: String,
+    @SerializedName("package_name") val packageName: String,
+    @SerializedName("app_name") val appName: String?,
+    @SerializedName("total_minutes") val totalMinutes: Int,
+    @SerializedName("night_minutes") val nightMinutes: Int,
+    val hourly: List<HourlyUsageDto>,
+    val sessions: List<SessionUsageDto>
+)
+
 // Mappers
 fun AppUsageDto.toDomain() = AppUsageItem(appName, packageName, minutes)
 
@@ -54,4 +75,14 @@ fun DashboardDto.toDomain() = DashboardData(
     weeklyBreakdown = weeklyBreakdown?.map { it.toDomain() } ?: emptyList(), // Eğer weeklyBreakdown null ise boş liste kullan
     bedtimeStart = bedtimeStart,
     bedtimeEnd = bedtimeEnd
+)
+
+fun AppDetailDto.toDomain() = AppDetail(
+    date = date,
+    packageName = packageName,
+    appName = appName,
+    totalMinutes = totalMinutes,
+    nightMinutes = nightMinutes,
+    hourly = hourly.map { HourlyUsageDomain(it.hour, it.minutes) },
+    sessions = sessions.map { SessionUsageDomain(it.startedAt, it.endedAt, it.minutes) }
 )

@@ -2,9 +2,18 @@ package com.example.digitalhealthkids.core.util
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
 import java.util.Locale
 
 object AppUtils {
+
+    fun getAppIcon(context: Context, packageName: String): Drawable? {
+        return try {
+            context.packageManager.getApplicationIcon(packageName)
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
 
     // Paket ismini (com.whatsapp) -> "WhatsApp" a çevirir
     fun getAppName(context: Context, packageName: String, backendName: String?): String {
