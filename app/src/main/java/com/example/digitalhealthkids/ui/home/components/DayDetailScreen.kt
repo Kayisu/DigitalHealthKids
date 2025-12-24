@@ -2,6 +2,7 @@ package com.example.digitalhealthkids.ui.home.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -73,7 +74,6 @@ fun DailyDetailScreen(
             } else if (state.data != null) {
                 val dashboard = state.data!!
 
-                // Güvenlik kontrolü: Index liste dışına çıkmasın
                 val safeInitialPage = initialDayIndex.coerceIn(0, (dashboard.weeklyBreakdown.size - 1).coerceAtLeast(0))
 
                 val pagerState = rememberPagerState(
@@ -86,7 +86,14 @@ fun DailyDetailScreen(
                     modifier = Modifier.fillMaxSize()
                 ) { pageIndex ->
                     val stat = dashboard.weeklyBreakdown[pageIndex]
-                    DailyContentPage(stat = stat)
+
+                    // Navigasyon işlemi burada tetikleniyor
+                    DailyContentPage(
+                        stat = stat,
+                        onAppClick = { packageName, appName ->
+                            navController.navigate("app_detail/$userId/$packageName/$appName")
+                        }
+                    )
                 }
             } else {
                 Text(
@@ -100,10 +107,12 @@ fun DailyDetailScreen(
 }
 
 @Composable
-fun DailyContentPage(stat: DailyStat) {
+fun DailyContentPage(
+    stat: DailyStat,
+    onAppClick: (String, String) -> Unit // Tıklama callback'i eklendi
+) {
     val context = LocalContext.current
 
-    // Tarih Formatlama (2 Aralık Salı)
     val dateLabel = try {
         val date = LocalDate.parse(stat.date)
         date.format(DateTimeFormatter.ofPattern("d MMMM EEEE", Locale("tr")))
@@ -149,7 +158,6 @@ fun DailyContentPage(stat: DailyStat) {
                         trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Günlük hedef (4 sa) kullanımı", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -172,7 +180,8 @@ fun DailyContentPage(stat: DailyStat) {
             AppUsageRowItem(
                 name = cleanName,
                 packageName = app.packageName,
-                minutes = app.minutes
+                minutes = app.minutes,
+                onClick = { onAppClick(app.packageName, cleanName) } // Tıklama bağlandı
             )
         }
 
@@ -188,12 +197,15 @@ fun AppUsageRowItem(
     packageName: String,
     minutes: Int,
     isBlocked: Boolean = false,
-    onBlockToggle: ((Boolean) -> Unit)? = null
+    onBlockToggle: ((Boolean) -> Unit)? = null,
+    onClick: () -> Unit // Yeni parametre
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp)) // Tıklama efekti (ripple) köşelere uysun diye clip eklendi
+            .background(Color.White)
+            .clickable { onClick() } // Tıklanabilirlik eklendi
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -206,7 +218,6 @@ fun AppUsageRowItem(
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
-            // Eğer engelliyse altına minik not düşebiliriz
             if (isBlocked) {
                 Text(
                     text = "Engellendi",
@@ -228,7 +239,6 @@ fun AppUsageRowItem(
                 )
             )
         } else {
-            // Sadece gösterim modu (Eski hali)
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 shape = RoundedCornerShape(8.dp)

@@ -22,7 +22,8 @@ data class UsageReportResponseDto(val status: String, val inserted: Int)
 data class AppUsageDto(
     @SerializedName("app_name") val appName: String,
     @SerializedName("package_name") val packageName: String,
-    val minutes: Int
+    val minutes: Int,
+    @SerializedName("category") val category: String? = null
 )
 
 data class DailyStatDto(
@@ -54,6 +55,7 @@ data class AppDetailDto(
     val date: String,
     @SerializedName("package_name") val packageName: String,
     @SerializedName("app_name") val appName: String?,
+    @SerializedName("category") val category: String? = null,
     @SerializedName("total_minutes") val totalMinutes: Int,
     @SerializedName("night_minutes") val nightMinutes: Int,
     val hourly: List<HourlyUsageDto>,
@@ -61,7 +63,7 @@ data class AppDetailDto(
 )
 
 // Mappers
-fun AppUsageDto.toDomain() = AppUsageItem(appName, packageName, minutes)
+fun AppUsageDto.toDomain() = AppUsageItem(appName, packageName, minutes, category)
 
 fun DailyStatDto.toDomain() = DailyStat(
     date,
@@ -81,6 +83,7 @@ fun AppDetailDto.toDomain() = AppDetail(
     date = date,
     packageName = packageName,
     appName = appName,
+    category = category,
     totalMinutes = totalMinutes,
     nightMinutes = nightMinutes,
     hourly = hourly.map { HourlyUsageDomain(it.hour, it.minutes) },

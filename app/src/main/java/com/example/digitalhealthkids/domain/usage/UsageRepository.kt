@@ -3,7 +3,8 @@ package com.example.digitalhealthkids.domain.usage
 data class AppUsageItem(
     val appName: String,
     val packageName: String,
-    val minutes: Int
+    val minutes: Int,
+    val category: String? = null
 )
 
 data class DailyStat(
@@ -36,6 +37,7 @@ data class AppDetail(
     val date: String,
     val packageName: String,
     val appName: String?,
+    val category: String?,
     val totalMinutes: Int,
     val nightMinutes: Int,
     val hourly: List<HourlyUsageDomain>,

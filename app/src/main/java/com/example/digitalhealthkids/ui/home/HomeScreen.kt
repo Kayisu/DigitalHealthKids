@@ -10,10 +10,10 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.digitalhealthkids.ui.components.PullToRefreshLayout
 import com.example.digitalhealthkids.ui.home.components.*
 import com.example.digitalhealthkids.ui.policy.PolicyScreen
 import kotlinx.coroutines.launch
@@ -34,7 +34,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val appList by viewModel.appList.collectAsState()
-    val currentLimit by viewModel.currentLimit.collectAsState() // Dinamik limiti al
+    val currentLimit by viewModel.currentLimit.collectAsState()
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -65,14 +65,15 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues)) {
-            if (state.isLoading) {
-                Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-            } else if (state.error != null) {
-                Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    Text(text = state.error!!, color = MaterialTheme.colorScheme.error)
-                }
-            } else if (state.data != null) {
+        PullToRefreshLayout(
+            modifier = Modifier.padding(paddingValues),
+            isLoading = state.isLoading,
+            errorMessage = state.error,
+            onRefresh = {
+                viewModel.syncUsageHistory(context, userId, deviceId)
+            }
+        ) {
+            if (state.data != null) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize()
@@ -82,7 +83,7 @@ fun HomeScreen(
                             dashboard = state.data!!,
                             selectedDay = viewModel.selectedDay,
                             onDaySelected = { viewModel.selectDay(it) },
-                            dailyLimit = currentLimit, // Hardcoded değeri dinamik limitle değiştir
+                            dailyLimit = currentLimit,
                             onViewDetailsClick = onNavigateToDetail
                         )
                         1 -> AppsPage(

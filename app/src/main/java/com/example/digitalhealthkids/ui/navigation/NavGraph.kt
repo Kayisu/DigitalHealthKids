@@ -89,6 +89,7 @@ fun AppNavGraph(
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
             val packageName = backStackEntry.arguments?.getString("packageName") ?: ""
             val appName = backStackEntry.arguments?.getString("appName") ?: ""
+            //val category = backStackEntry.arguments?.getString("category") ?: ""
 
             val policyViewModel: PolicyViewModel = hiltViewModel()
 
@@ -96,7 +97,7 @@ fun AppNavGraph(
                 userId = userId,
                 packageName = packageName,
                 appName = appName,
-                category = "Genel",
+                //category = "",
                 onBackClick = { navController.popBackStack() },
                 onAddPolicy = { pkg, limit ->
                     policyViewModel.addPolicy(pkg, limit)

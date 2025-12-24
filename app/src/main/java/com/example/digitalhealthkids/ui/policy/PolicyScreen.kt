@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.digitalhealthkids.core.network.policy.PolicyResponseDto
+import com.example.digitalhealthkids.ui.components.PullToRefreshLayout // <-- Wrapper Import
 
 @Composable
 fun PolicyScreen(
@@ -31,17 +32,26 @@ fun PolicyScreen(
         viewModel.loadPolicy(userId)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (state.isLoading && state.policy == null) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-        } else if (state.policy != null) {
-            PolicyContent(
-                policy = state.policy!!,
-                isLoading = state.isLoading,
-                onSave = { limit, start, end ->
-                    viewModel.updateSettings(userId, limit, start, end)
-                }
-            )
+    Scaffold { padding ->
+        // PullToRefreshLayout ile sarmaladık
+        PullToRefreshLayout(
+            modifier = Modifier.padding(padding),
+            isLoading = state.isLoading,
+            errorMessage = state.error, // ViewModel'da error alanı varsa buraya bağla
+            onRefresh = {
+                viewModel.loadPolicy(userId)
+            }
+        ) {
+            // Veri varsa içeriği göster
+            if (state.policy != null) {
+                PolicyContent(
+                    policy = state.policy!!,
+                    isLoading = state.isLoading,
+                    onSave = { limit, start, end ->
+                        viewModel.updateSettings(userId, limit, start, end)
+                    }
+                )
+            }
         }
     }
 }
@@ -52,16 +62,17 @@ fun PolicyContent(
     isLoading: Boolean,
     onSave: (Int?, String?, String?) -> Unit
 ) {
+    // ÖNEMLİ DÜZELTME: remember(policy) kullanıldı.
+    // Böylece refresh yapıldığında form değerleri sunucudan gelen yeni veriyle sıfırlanır.
+
     // 1. LIMIT STATE
-    // Eğer null geldiyse switch kapalı olsun, limit 120 görünsün (ama pasif)
-    var isLimitEnabled by remember { mutableStateOf(policy.dailyLimitMinutes != null) }
-    var limitMinutes by remember { mutableFloatStateOf(policy.dailyLimitMinutes?.toFloat() ?: 120f) }
+    var isLimitEnabled by remember(policy) { mutableStateOf(policy.dailyLimitMinutes != null) }
+    var limitMinutes by remember(policy) { mutableFloatStateOf(policy.dailyLimitMinutes?.toFloat() ?: 120f) }
 
     // 2. BEDTIME STATE
-    // Eğer null geldiyse switch kapalı olsun
-    var isBedtimeEnabled by remember { mutableStateOf(policy.bedtime != null) }
-    var bedtimeStart by remember { mutableStateOf(policy.bedtime?.start ?: "21:30") }
-    var bedtimeEnd by remember { mutableStateOf(policy.bedtime?.end ?: "07:00") }
+    var isBedtimeEnabled by remember(policy) { mutableStateOf(policy.bedtime != null) }
+    var bedtimeStart by remember(policy) { mutableStateOf(policy.bedtime?.start ?: "21:30") }
+    var bedtimeEnd by remember(policy) { mutableStateOf(policy.bedtime?.end ?: "07:00") }
 
     val context = LocalContext.current
 
@@ -76,7 +87,9 @@ fun PolicyContent(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -116,7 +129,7 @@ fun PolicyContent(
                         Slider(
                             value = limitMinutes,
                             onValueChange = { limitMinutes = it },
-                            valueRange = 15f..240f, // 0 olmasın, kapatmak için switch var
+                            valueRange = 15f..240f,
                             steps = 14
                         )
                     } else {
@@ -199,7 +212,9 @@ fun PolicyContent(
 
                     onSave(finalLimit, finalStart, finalEnd)
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
                 enabled = !isLoading,
                 shape = RoundedCornerShape(12.dp)
             ) {
