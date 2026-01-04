@@ -7,15 +7,20 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.digitalhealthkids.ui.components.PullToRefreshLayout
 import com.example.digitalhealthkids.ui.home.components.*
 import com.example.digitalhealthkids.ui.policy.PolicyScreen
+import com.example.digitalhealthkids.ui.home.apps.AppsNavHost
+import com.example.digitalhealthkids.ui.home.components.SettingsScreen
 import kotlinx.coroutines.launch
 
 data class BottomNavItem(
@@ -30,15 +35,18 @@ fun HomeScreen(
     deviceId: String,
     onNavigateToDetail: (Int) -> Unit,
     onNavigateToAppDetail: (String, String) -> Unit,
+    onNavigateToForecastDetail: () -> Unit,
+    onNavigateToProfileDetail: () -> Unit,
+    onNavigateToAutoPolicy: () -> Unit,
+    onLogout: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val appList by viewModel.appList.collectAsState()
     val currentLimit by viewModel.currentLimit.collectAsState()
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 5 })
 
     LaunchedEffect(userId, deviceId) {
         viewModel.syncUsageHistory(context, userId, deviceId)
@@ -46,20 +54,38 @@ fun HomeScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
+            ) {
                 val items = listOf(
                     BottomNavItem("Özet", Icons.Default.BarChart),
                     BottomNavItem("Uygulamalar", Icons.Default.Apps),
-                    BottomNavItem("Kurallar", Icons.Default.Shield)
+                    BottomNavItem("Kurallar", Icons.Default.Shield),
+                    BottomNavItem("AI", Icons.Default.Psychology),
+                    BottomNavItem("Ayarlar", Icons.Default.Settings)
                 )
                 items.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
+                        icon = {
+                            Icon(
+                                item.icon,
+                                contentDescription = item.label,
+                                tint = if (pagerState.currentPage == index) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        label = { Text(item.label, maxLines = 1, softWrap = false) },
                         selected = pagerState.currentPage == index,
                         onClick = {
                             scope.launch { pagerState.animateScrollToPage(index) }
-                        }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
@@ -86,16 +112,25 @@ fun HomeScreen(
                             dailyLimit = currentLimit,
                             onViewDetailsClick = onNavigateToDetail
                         )
-                        1 -> AppsPage(
-                            appList = appList,
+                        1 -> AppsNavHost(
+                            viewModel = viewModel,
                             onAppClick = { app ->
                                 onNavigateToAppDetail(app.packageName, app.appName)
-                            },
-                            onToggleBlock = { pkg ->
-                                viewModel.toggleAppBlock(userId, pkg)
                             }
                         )
-                        2 -> PolicyScreen(userId = userId)
+                        2 -> PolicyScreen(
+                            userId = userId,
+                            onNavigateToAutoPolicy = onNavigateToAutoPolicy
+                        )
+                        3 -> AiDashboardScreen(
+                            userId = userId,
+                            onForecastClick = { onNavigateToForecastDetail() },
+                            onProfileClick = { onNavigateToProfileDetail() }
+                        )
+                        4 -> SettingsScreen(
+                            userId = userId,
+                            onLoggedOut = onLogout
+                        )
                     }
                 }
             }

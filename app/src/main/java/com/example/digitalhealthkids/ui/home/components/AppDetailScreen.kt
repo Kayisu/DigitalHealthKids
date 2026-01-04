@@ -5,11 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.digitalhealthkids.core.util.AppUtils
+import com.example.digitalhealthkids.core.util.CategoryLabels
 import com.example.digitalhealthkids.domain.usage.AppDetail
 import com.example.digitalhealthkids.domain.usage.HourlyUsageDomain
 import com.example.digitalhealthkids.ui.components.PullToRefreshLayout
@@ -41,6 +45,7 @@ fun AppDetailScreen(
     viewModel: AppDetailViewModel = hiltViewModel()
 ) {
     var showPolicyDialog by remember { mutableStateOf(false) }
+    var showBlockedDialog by remember { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
@@ -53,7 +58,7 @@ fun AppDetailScreen(
     val icon = AppUtils.getAppIcon(context, packageName)
 
     // Kategori State'den geliyor (Backend verisi)
-    val categoryText = state.data?.category ?: "Genel"
+    val categoryText = CategoryLabels.labelFor(state.data?.category)
 
     Scaffold(
         topBar = {
@@ -95,7 +100,8 @@ fun AppDetailScreen(
             isLoading = state.isLoading,
             errorMessage = state.error,
             onRefresh = {
-                viewModel.load(userId, packageName, LocalDate.now())
+                // Aynı günü koruyarak yeniden çek
+                viewModel.load(userId, packageName, state.date)
             }
         ) {
             // Sadece veri varsa içeriği gösteriyoruz
@@ -110,7 +116,8 @@ fun AppDetailScreen(
                     onAddPolicy = { limit -> onAddPolicy(packageName, limit) },
                     showPolicyDialog = showPolicyDialog,
                     onTogglePolicyDialog = { showPolicyDialog = it },
-                    canGoNext = canGoNext
+                    canGoNext = canGoNext,
+                    appTitle = title
                 )
             }
         }
@@ -128,21 +135,28 @@ private fun AppDetailContent(
     onAddPolicy: (Int) -> Unit,
     showPolicyDialog: Boolean,
     onTogglePolicyDialog: (Boolean) -> Unit,
-    canGoNext: Boolean
+    canGoNext: Boolean,
+    appTitle: String
 ) {
     val parsedDate = runCatching { LocalDate.parse(detail.date) }.getOrNull()
     val dateLabel = parsedDate?.format(DateTimeFormatter.ofPattern("d MMMM EEEE")) ?: detail.date
 
     val visibleHours = remember(detail.hourly) { trimHours(detail.hourly) }
     var selectedHour by remember { mutableStateOf<HourlyUsageDomain?>(null) }
+    val prefs = LocalContext.current.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+    var isBlocked by remember(detail.packageName) {
+        mutableStateOf(prefs.getStringSet("blocked_packages", emptySet())?.contains(detail.packageName) == true)
+    }
+    var currentLimit by remember { mutableStateOf<Int?>(prefs.getInt("daily_limit", -1).takeIf { it >= 0 }) }
+    var showBlockedDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { Spacer(Modifier.height(8.dp)) }
+        item { Spacer(Modifier.height(6.dp)) }
 
         // Tarih Navigasyonu
         item {
@@ -171,23 +185,103 @@ private fun AppDetailContent(
         // Seçilen Saat Detayı
         selectedHour?.let { hour ->
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Saat ${hour.hour}:00 - ${hour.hour + 1}:00", style = MaterialTheme.typography.titleMedium)
-                        Text("${hour.minutes} dakika kullanım", style = MaterialTheme.typography.bodyLarge)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.16f))
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = appTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            "Kullanım: ${formatDurationHhMm(hour.minutes)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             }
         }
 
-        // Süre Sınırı Butonu
+        // Süre Sınırı Kartı
         item {
-            Button(
-                onClick = { onTogglePolicyDialog(true) },
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Text("Süre Sınırı Koy")
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Kısıtlamalar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Günlük süre sınırı koyabilir veya uygulamayı engelleyebilirsin.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (currentLimit != null) {
+                        val remaining = (currentLimit!! - detail.totalMinutes).coerceAtLeast(0)
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Text("Günlük limit: ${formatDurationHhMm(currentLimit!!)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Text("Kalan: ${formatDurationHhMm(remaining)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                currentLimit = null
+                                onAddPolicy(-2) // daily limit kaldır
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Süre sınırını kaldır")
+                        }
+                    }
+                    FilledTonalButton(
+                        onClick = { onTogglePolicyDialog(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(if (currentLimit == null) "Süre Sınırı Koy" else "Süreyi Güncelle")
+                    }
+                    Button(
+                        onClick = {
+                            if (isBlocked) {
+                                onAddPolicy(-1) // unblock
+                                isBlocked = false
+                                showBlockedDialog = false
+                            } else {
+                                onAddPolicy(0) // block
+                                isBlocked = true
+                                currentLimit = null
+                                showBlockedDialog = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = if (isBlocked)
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        else ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(if (isBlocked) "Engeli Kaldır" else "Engelle")
+                    }
+                }
             }
         }
 
@@ -199,10 +293,74 @@ private fun AppDetailContent(
             onDismiss = { onTogglePolicyDialog(false) },
             onConfirm = { limit ->
                 onAddPolicy(limit)
+                currentLimit = limit
+                isBlocked = false
                 onTogglePolicyDialog(false)
             }
         )
     }
+
+    if (showBlockedDialog) {
+        BlockedAppDialog(
+            appName = appTitle,
+            onDismiss = { showBlockedDialog = false },
+            onOpenPolicy = {
+                showBlockedDialog = false
+                onTogglePolicyDialog(true)
+            }
+        )
+    }
+}
+
+@Composable
+private fun BlockedAppDialog(
+    appName: String,
+    onDismiss: () -> Unit,
+    onOpenPolicy: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Surface(
+                tonalElevation = 2.dp,
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.errorContainer
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Block,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        },
+        title = { Text("Uygulama Engellendi", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "$appName şu an engelli.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Ayarları düzenleyerek açabilir veya süre sınırı koyabilirsin.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onOpenPolicy, shape = RoundedCornerShape(10.dp)) {
+                Text("Süre Sınırı Koy")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Kapat")
+            }
+        },
+        shape = RoundedCornerShape(20.dp)
+    )
 }
 
 // ... UsageSummaryCards, HourlyChart, trimHours fonksiyonları aynı ...
@@ -210,18 +368,28 @@ private fun AppDetailContent(
 private fun UsageSummaryCards(detail: AppDetail) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Card(modifier = Modifier.weight(1f)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Toplam Kullanım", style = MaterialTheme.typography.titleMedium)
-                Text("${detail.totalMinutes} dk", style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
+        Card(
+            modifier = Modifier.weight(1f),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("Toplam", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text("Kullanım", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                Text(formatDurationHhMm(detail.totalMinutes), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
             }
         }
-        Card(modifier = Modifier.weight(1f)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Gece Kullanımı", style = MaterialTheme.typography.titleMedium)
-                Text("${detail.nightMinutes} dk", style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
+        Card(
+            modifier = Modifier.weight(1f),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("Gece", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text("Kullanımı", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                Text(formatDurationHhMm(detail.nightMinutes), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -240,8 +408,13 @@ private fun HourlyChart(
     val maxMinutes = remember(data) { max(data.maxOfOrNull { it.minutes } ?: 0, 1) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Saatlik Dağılım", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(16.dp))
+        Text("Saatlik Dağılım", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            "Tıklayarak saat detayını seç",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -251,7 +424,7 @@ private fun HourlyChart(
         ) {
             data.forEach { item ->
                 val isSelected = selectedHour?.hour == item.hour
-                val color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                val color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
 
                 val ratio = item.minutes / maxMinutes.toFloat()
                 val barHeight = max(8f, ratio * 160f)
@@ -270,7 +443,8 @@ private fun HourlyChart(
                     Text(
                         text = item.hour.toString(),
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -286,4 +460,14 @@ private fun trimHours(data: List<HourlyUsageDomain>): List<HourlyUsageDomain> {
     val start = max(0, first - 2)
     val end = kotlin.math.min(23, last + 2)
     return data.subList(start, end + 1)
+}
+
+private fun formatDurationHhMm(totalMinutes: Int): String {
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 && minutes > 0 -> "${hours} sa ${minutes} dk"
+        hours > 0 -> "${hours} sa"
+        else -> "${minutes} dk"
+    }
 }

@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.OneTimeWorkRequest
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.workDataOf
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.core.network.usage.UsageReportRequestDto
 // 🔥 DEĞİŞEN IMPORT BURASI:
@@ -22,6 +25,13 @@ class UsageSyncWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val usageApi: UsageApi
 ) : CoroutineWorker(appContext, workerParams) {
+
+    companion object {
+        fun oneTime(daysBack: Int = 0): OneTimeWorkRequest =
+            OneTimeWorkRequestBuilder<UsageSyncWorker>()
+                .setInputData(workDataOf("days_back" to daysBack))
+                .build()
+    }
 
     private fun aggregateByDayAndPackage(events: List<UsageEventDto>): List<UsageEventDto> {
         if (events.isEmpty()) return events
@@ -72,9 +82,10 @@ class UsageSyncWorker @AssistedInject constructor(
                 return@withContext Result.failure()
             }
 
-            // Şimdilik sadece bugünü gönder (0 = bugün). Geçmiş backfill'i manuel çalıştırırız.
-            val rawEvents = readUsageEventsForRange(applicationContext, 0)
-            Log.i("UsageSync", "Raw events read count=${rawEvents.size} (daysBack=0)")
+            // days_back parametresi verilirse geçmişi de gönder (0 = sadece bugün).
+            val daysBack = inputData.getInt("days_back", 0).coerceAtLeast(0)
+            val rawEvents = readUsageEventsForRange(applicationContext, daysBack)
+            Log.i("UsageSync", "Raw events read count=${rawEvents.size} (daysBack=$daysBack)")
 
             // Gün + paket bazında özetleyerek payload'ı küçült (aynı paket/gün tekrarlarını birleştir).
             val events = aggregateByDayAndPackage(rawEvents)

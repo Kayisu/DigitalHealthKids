@@ -8,9 +8,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.digitalhealthkids.ui.auth.LoginScreen
+import com.example.digitalhealthkids.ui.auth.RegisterScreen
 import com.example.digitalhealthkids.ui.home.HomeScreen
 import com.example.digitalhealthkids.ui.home.components.DailyDetailScreen
 import com.example.digitalhealthkids.ui.home.components.AppDetailScreen // Bu dosyanın var olduğunu varsayıyorum
+import com.example.digitalhealthkids.ui.home.components.ForecastDetailRoute
+import com.example.digitalhealthkids.ui.home.components.ProfileDetailRoute
+import com.example.digitalhealthkids.ui.policy.AutoPolicyScreen
 import com.example.digitalhealthkids.ui.policy.PolicyViewModel
 
 @Composable
@@ -28,7 +32,16 @@ fun AppNavGraph(
                     navController.navigate("home/$userId/$deviceId") {
                         popUpTo("login") { inclusive = true }
                     }
+                },
+                onNavigateToRegister = {
+                    navController.navigate("register")
                 }
+            )
+        }
+
+        composable("register") {
+            RegisterScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -52,6 +65,20 @@ fun AppNavGraph(
                 },
                 onNavigateToAppDetail = { packageName, appName ->
                     navController.navigate("app_detail/$userId/$packageName/$appName")
+                },
+                onNavigateToForecastDetail = {
+                    navController.navigate("forecast/$userId")
+                },
+                onNavigateToProfileDetail = {
+                    navController.navigate("profile/$userId")
+                },
+                onNavigateToAutoPolicy = {
+                    navController.navigate("auto_policy/$userId")
+                },
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo("login") { inclusive = true }
+                    }
                 }
             )
         }
@@ -100,8 +127,40 @@ fun AppNavGraph(
                 //category = "",
                 onBackClick = { navController.popBackStack() },
                 onAddPolicy = { pkg, limit ->
-                    policyViewModel.addPolicy(pkg, limit)
+                    policyViewModel.addPolicy(userId, pkg, limit)
                 }
+            )
+        }
+
+        // 5. FORECAST DETAIL
+        composable(
+            route = "forecast/{userId}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            ForecastDetailRoute(userId = userId, onBack = { navController.popBackStack() })
+        }
+
+        // 6. PROFILE DETAIL
+        composable(
+            route = "profile/{userId}",
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            ProfileDetailRoute(userId = userId, onBack = { navController.popBackStack() })
+        }
+
+        // 7. AUTO POLICY PREVIEW
+        composable(
+            route = "auto_policy/{userId}",
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            AutoPolicyScreen(
+                userId = userId,
+                onBack = { navController.popBackStack() }
             )
         }
     }

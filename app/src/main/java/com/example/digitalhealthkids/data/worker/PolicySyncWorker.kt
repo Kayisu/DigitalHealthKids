@@ -30,6 +30,17 @@ class PolicySyncWorker @AssistedInject constructor(
             val result = policyRepository.refreshPolicy(userId)
 
             if (result.isSuccess) {
+                // Cache'i app_prefs'e yazarak engelleme servisini güncel tut
+                policyRepository.getCachedPolicy()?.let { policy ->
+                    val appPrefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                    appPrefs.edit().apply {
+                        putStringSet("blocked_packages", policy.blockedApps.toSet())
+                        putInt("daily_limit", policy.dailyLimitMinutes ?: -1)
+                        putString("bedtime_start", policy.bedtime?.start)
+                        putString("bedtime_end", policy.bedtime?.end)
+                        apply()
+                    }
+                }
                 Result.success()
             } else {
                 // İnternet yoksa vs. sonra tekrar dene

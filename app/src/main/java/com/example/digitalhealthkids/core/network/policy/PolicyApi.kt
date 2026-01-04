@@ -16,6 +16,18 @@ interface PolicyApi {
     @GET("policy/current")
     suspend fun getCurrentPolicy(@Query("user_id") userId: String): PolicyResponseDto
 
+    @GET("policy/auto-preview")
+    suspend fun autoPreviewPolicy(@Query("user_id") userId: String): AutoPolicyResponseDto
+
+    @POST("policy/auto-apply")
+    suspend fun autoApplyPolicy(@Query("user_id") userId: String): AutoPolicyResponseDto
+
+    @GET("policy/recommendations")
+    suspend fun getRecommendations(
+        @Query("risk_level") riskLevel: String,
+        @Query("profile") profile: String
+    ): PolicyRecommendationsDto
+
     @POST("policy/toggle-block")
     suspend fun toggleBlock(@Body body: ToggleBlockRequest): PolicyResponseDto
 

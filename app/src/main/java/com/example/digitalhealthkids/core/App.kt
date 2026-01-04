@@ -5,8 +5,10 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.digitalhealthkids.data.worker.PolicySyncWorker
 import com.example.digitalhealthkids.data.worker.UsageSyncWorker
@@ -63,6 +65,16 @@ class DigitalHealthKidsApp : Application(), Configuration.Provider {
             "sync_usage_work",
             ExistingPeriodicWorkPolicy.KEEP,
             usageRequest
+        )
+
+        // Uygulama açılır açılmaz bugünün verisini geciktirmeden göndermek için tek seferlik iş
+        val immediateUsage = OneTimeWorkRequestBuilder<UsageSyncWorker>()
+            .setConstraints(constraints)
+            .build()
+        workManager.enqueueUniqueWork(
+            "sync_usage_now",
+            ExistingWorkPolicy.REPLACE,
+            immediateUsage
         )
     }
 }

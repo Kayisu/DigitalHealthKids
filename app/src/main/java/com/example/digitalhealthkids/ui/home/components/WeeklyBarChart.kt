@@ -27,72 +27,62 @@ fun WeeklyBarChart(
     val chartMax = if (maxMinutes == 0) 60f else maxMinutes.toFloat()
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text("Haftalık Aktivite", style = MaterialTheme.typography.titleMedium)
 
-            // Çubukların olduğu alan
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly, // Eşit aralıklarla dağıt
-                verticalAlignment = Alignment.Bottom // Row içindekileri alta hizala
+                    .height(200.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Bottom
             ) {
                 dailyStats.forEachIndexed { index, stat ->
                     val isSelected = index == selectedDayIndex
-
-                    // Oran (0.0 ile 1.0 arası)
                     val heightRatio = (stat.totalMinutes / chartMax).coerceIn(0f, 1f)
 
-                    // Gün İsmi (Pzt, Sal...)
                     val dayLabel = try {
                         val date = LocalDate.parse(stat.date)
                         date.format(DateTimeFormatter.ofPattern("EEE", Locale("tr")))
                     } catch (e: Exception) { "?" }
 
-                    // Tek bir gün sütunu
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        // ESKİSİ (Hatalı): verticalArrangement = Arrangement.End
-                        // YENİSİ (Doğru):
                         verticalArrangement = Arrangement.Bottom,
                         modifier = Modifier
                             .fillMaxHeight()
                             .weight(1f)
                             .clickable { onDaySelected(index) }
                     ) {
-                        // ÇUBUK KUTUSU
-                        // Box kullanarak çubuğun boyutunu ve hizalamasını garantiye alıyoruz
+                        Spacer(modifier = Modifier.height(20.dp))
                         Box(
-                            contentAlignment = Alignment.BottomCenter, // İçerik alttan büyüsün
+                            contentAlignment = Alignment.BottomCenter,
                             modifier = Modifier
-                                .weight(1f) // Üstteki boşluğu doldur
-                                .width(30.dp) // Tıklanabilir alanı geniş tutmak için
+                                .weight(1f)
+                                .width(36.dp)
                         ) {
-                            // Asıl Renkli Çubuk
                             Box(
                                 modifier = Modifier
-                                    .width(12.dp) // Çubuk kalınlığı
-                                    .fillMaxHeight(heightRatio) // Yükseklik orana göre
-                                    // Veri yoksa bile (0 dk) minik bir nokta koy (4dp)
-                                    .heightIn(min = if (stat.totalMinutes > 0) 4.dp else 2.dp)
-                                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                    .width(14.dp)
+                                    .fillMaxHeight(heightRatio)
+                                    .heightIn(min = if (stat.totalMinutes > 0) 6.dp else 2.dp)
+                                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                                     .background(
                                         if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
                                     )
-                                    .align(Alignment.BottomCenter) // KESİN HİZALAMA
+                                    .align(Alignment.BottomCenter)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
                             text = dayLabel,

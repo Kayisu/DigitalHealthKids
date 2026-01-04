@@ -10,10 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material3.TextButton
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: (String, String) -> Unit, // childId, deviceId
+    onNavigateToRegister: () -> Unit = {},
     viewModel: LoginViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -69,6 +71,13 @@ fun LoginScreen(
                 } else {
                     Text("Giriş Yap")
                 }
+            }
+
+            TextButton(
+                onClick = { onNavigateToRegister() },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text("Hesabın yok mu? Kayıt ol")
             }
         }
     }

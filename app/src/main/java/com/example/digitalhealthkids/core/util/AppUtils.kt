@@ -3,6 +3,7 @@ package com.example.digitalhealthkids.core.util
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.util.Log
 import java.util.Locale
 
 object AppUtils {
@@ -35,5 +36,27 @@ object AppUtils {
         // com.instagram.android -> Instagram
         return packageName.substringAfterLast('.')
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+    }
+
+    /**
+     * Telefonda yüklü kullanıcı uygulamalarını (sistem hariç) logcat'e basar.
+     * Çıktı: package_name, app_label
+     */
+    fun logInstalledUserApps(context: Context, tag: String = "APP_LIST") {
+        val pm = context.packageManager
+        val packages = pm.getInstalledApplications(0)
+            .filter { (it.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 }
+            .sortedBy { it.packageName.lowercase(Locale.getDefault()) }
+
+        val lines = packages.map { appInfo ->
+            val label = pm.getApplicationLabel(appInfo).toString()
+            "${appInfo.packageName}\t$label"
+        }
+
+        Log.i(tag, "Installed user apps (${lines.size}):")
+        // Çok satır tek log yerine okunabilir olsun diye parça parça basalım
+        lines.chunked(50).forEachIndexed { idx, chunk ->
+            Log.i(tag, "chunk ${idx + 1}/${(lines.size + 49) / 50}\n" + chunk.joinToString("\n"))
+        }
     }
 }

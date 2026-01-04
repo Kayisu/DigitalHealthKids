@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
@@ -20,10 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.digitalhealthkids.core.network.policy.PolicyResponseDto
 import com.example.digitalhealthkids.ui.components.PullToRefreshLayout // <-- Wrapper Import
+import com.example.digitalhealthkids.core.util.AppUtils
 
 @Composable
 fun PolicyScreen(
     userId: String,
+    onNavigateToAutoPolicy: () -> Unit,
     viewModel: PolicyViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -47,9 +50,10 @@ fun PolicyScreen(
                 PolicyContent(
                     policy = state.policy!!,
                     isLoading = state.isLoading,
-                    onSave = { limit, start, end ->
-                        viewModel.updateSettings(userId, limit, start, end)
-                    }
+                    onSave = { limit, start, end, weekendRelax ->
+                        viewModel.updateSettings(userId, limit, start, end, weekendRelax)
+                    },
+                    onNavigateToAutoPolicy = onNavigateToAutoPolicy
                 )
             }
         }
@@ -60,7 +64,8 @@ fun PolicyScreen(
 fun PolicyContent(
     policy: PolicyResponseDto,
     isLoading: Boolean,
-    onSave: (Int?, String?, String?) -> Unit
+    onSave: (Int?, String?, String?, Int) -> Unit,
+    onNavigateToAutoPolicy: () -> Unit
 ) {
     // ÖNEMLİ DÜZELTME: remember(policy) kullanıldı.
     // Böylece refresh yapıldığında form değerleri sunucudan gelen yeni veriyle sıfırlanır.
@@ -73,6 +78,8 @@ fun PolicyContent(
     var isBedtimeEnabled by remember(policy) { mutableStateOf(policy.bedtime != null) }
     var bedtimeStart by remember(policy) { mutableStateOf(policy.bedtime?.start ?: "21:30") }
     var bedtimeEnd by remember(policy) { mutableStateOf(policy.bedtime?.end ?: "07:00") }
+
+    var weekendRelaxPct by remember(policy) { mutableStateOf(policy.weekendExtraMinutes) }
 
     val context = LocalContext.current
 
@@ -89,20 +96,51 @@ fun PolicyContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Text(
-                "Kısıtlamalar",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-            )
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Column {
+                            Text("Önerilen Politika", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                    FilledTonalButton(
+                        onClick = onNavigateToAutoPolicy,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Öneriyi gör")
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Kısıtlamalar",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    "Günlük limit, uyku saati ve hafta sonu esnekliğini buradan yönet.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         // --- GÜNLÜK LİMİT KARTI ---
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(10.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -115,26 +153,35 @@ fun PolicyContent(
                         }
                         Switch(
                             checked = isLimitEnabled,
-                            onCheckedChange = { isLimitEnabled = it }
+                            onCheckedChange = { isLimitEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            )
                         )
                     }
 
                     if (isLimitEnabled) {
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(10.dp))
                         Text(
                             "${limitMinutes.toInt()} dakika",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Slider(
                             value = limitMinutes,
                             onValueChange = { limitMinutes = it },
                             valueRange = 15f..240f,
-                            steps = 14
+                            steps = 44,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            )
                         )
                     } else {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Süre sınırı yok (Sınırsız)", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Süre sınırı yok (Sınırsız)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -143,7 +190,7 @@ fun PolicyContent(
         // --- UYKU VAKTİ KARTI ---
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(10.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -156,12 +203,16 @@ fun PolicyContent(
                         }
                         Switch(
                             checked = isBedtimeEnabled,
-                            onCheckedChange = { isBedtimeEnabled = it }
+                            onCheckedChange = { isBedtimeEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            )
                         )
                     }
 
                     if (isBedtimeEnabled) {
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -174,29 +225,68 @@ fun PolicyContent(
                             }
                         }
                     } else {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Uyku saati kısıtlaması yok", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Uyku saati kısıtlaması yok", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+            }
+        }
+
+        // --- HAFTA SONU ESNEKLİĞİ ---
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Timer, null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Hafta Sonu / Tatil Esnekliği", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Text(
+                        "Hafta sonu limitini yumuşat: %$weekendRelaxPct",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Slider(
+                        value = weekendRelaxPct.toFloat(),
+                        onValueChange = { weekendRelaxPct = it.toInt() },
+                        valueRange = 0f..50f,
+                        steps = 10,
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        )
+                    )
+                    Text("0-50% arası önerilir. Tatil günleri için de uygulanır.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
         // --- ENGELLENENLER ---
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.Block, null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Engellenenler", style = MaterialTheme.typography.titleMedium)
+                        Text("Engellenenler", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Text("${policy.blockedApps.size} adet", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.height(8.dp))
                     if (policy.blockedApps.isNotEmpty()) {
-                        policy.blockedApps.forEach { pkg ->
-                            Text("• $pkg", style = MaterialTheme.typography.bodyMedium)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            policy.blockedApps.forEach { pkg ->
+                                val displayName = AppUtils.getAppName(context, pkg, pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() })
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(displayName, style = MaterialTheme.typography.bodyMedium)
+                                    }
+                                }
+                            }
                         }
                     } else {
-                        Text("Yok", style = MaterialTheme.typography.bodyMedium)
+                        Text("Yok", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -210,13 +300,17 @@ fun PolicyContent(
                     val finalStart = if (isBedtimeEnabled) bedtimeStart else null
                     val finalEnd = if (isBedtimeEnabled) bedtimeEnd else null
 
-                    onSave(finalLimit, finalStart, finalEnd)
+                    onSave(finalLimit, finalStart, finalEnd, weekendRelaxPct)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
+                    .height(46.dp),
                 enabled = !isLoading,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))

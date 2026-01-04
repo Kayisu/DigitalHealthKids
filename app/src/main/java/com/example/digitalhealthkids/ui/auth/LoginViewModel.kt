@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import androidx.core.content.edit
+import retrofit2.HttpException
 
 data class LoginUiState(
     val email: String = "",
@@ -63,8 +64,16 @@ class LoginViewModel @Inject constructor(
 
                 onSuccess(resp.userId, safeDeviceId)
             }.onFailure { e ->
+                val message = when (e) {
+                    is HttpException -> when (e.code()) {
+                        403 -> "E-postanı doğruladıktan sonra giriş yapabilirsin."
+                        401 -> "E-posta veya şifre hatalı."
+                        else -> "Giriş başarısız (HTTP ${e.code()})"
+                    }
+                    else -> e.message ?: "Giriş başarısız"
+                }
                 _state.value = current.copy(
-                    error = e.message ?: "Giriş başarısız"
+                    error = message
                 )
             }
         }

@@ -6,7 +6,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -31,6 +34,12 @@ private val LightColors = lightColorScheme(
     error = ErrorRed
 )
 
+private val AppShapes = Shapes(
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp)
+)
+
 @Composable
 fun DigitalHealthKidsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -50,7 +59,8 @@ fun DigitalHealthKidsTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography, // Type.kt dosyan standart kalabilir
+        typography = Typography,
+        shapes = AppShapes,
         content = content
     )
 }

@@ -1,5 +1,6 @@
 package com.example.digitalhealthkids.data.policy
 
+import com.example.digitalhealthkids.core.network.policy.AutoPolicyResponseDto
 import com.example.digitalhealthkids.core.network.policy.PolicyApi
 import com.example.digitalhealthkids.core.network.policy.PolicyResponseDto
 import com.example.digitalhealthkids.core.network.policy.PolicySettingsRequestDto
@@ -44,6 +45,29 @@ class PolicyRepositoryImpl @Inject constructor(
             policyManager.updatePolicy(updatedPolicy)
 
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun autoApplyPolicy(userId: String): Result<AutoPolicyResponseDto> {
+        return try {
+            val autoPolicy = api.autoApplyPolicy(userId)
+
+            // Auto-apply güncel kuralları yazdığı için hemen çekip cache'leyelim
+            val refreshed = api.getCurrentPolicy(userId)
+            policyManager.updatePolicy(refreshed)
+
+            Result.success(autoPolicy)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun autoPreviewPolicy(userId: String): Result<AutoPolicyResponseDto> {
+        return try {
+            val autoPolicy = api.autoPreviewPolicy(userId)
+            Result.success(autoPolicy)
         } catch (e: Exception) {
             Result.failure(e)
         }

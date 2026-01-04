@@ -2,11 +2,16 @@ package com.example.digitalhealthkids.core.di
 
 import android.content.Context
 import com.example.digitalhealthkids.core.network.AuthApi
+import com.example.digitalhealthkids.core.network.BaseUrlStore
 import com.example.digitalhealthkids.core.network.NetworkConstants
+import com.example.digitalhealthkids.core.network.ai.AiApi
 import com.example.digitalhealthkids.core.network.usage.UsageApi
 import com.example.digitalhealthkids.data.auth.AuthRepositoryImplementation
+import com.example.digitalhealthkids.data.ai.AiRepositoryRemoteImpl
 import com.example.digitalhealthkids.data.usage.UsageRepositoryRemoteImpl
 import com.example.digitalhealthkids.domain.auth.AuthRepository
+import com.example.digitalhealthkids.domain.ai.AiRepository
+import com.example.digitalhealthkids.data.auth.AuthRepositoryRemoteImpl
 import com.example.digitalhealthkids.domain.usage.UsageRepository
 import dagger.Module
 import dagger.Provides
@@ -31,15 +36,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(baseUrlStore: BaseUrlStore): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
         return OkHttpClient.Builder()
+            .addInterceptor(FailoverInterceptor(baseUrlStore))
             .addInterceptor(logging)
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
             .build()
     }
 
@@ -64,7 +70,7 @@ object AppModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("http://192.168.1.5:8000/api/")
+            .baseUrl(NetworkConstants.LOCAL_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -87,6 +93,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideAiApi(retrofit: Retrofit): AiApi =
+        retrofit.create(AiApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideUsageRepository(api: UsageApi): UsageRepository =
         UsageRepositoryRemoteImpl(api)
+
+    @Provides
+    @Singleton
+    fun provideAiRepository(api: AiApi): AiRepository =
+        AiRepositoryRemoteImpl(api)
 }

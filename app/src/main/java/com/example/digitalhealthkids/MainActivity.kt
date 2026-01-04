@@ -26,11 +26,16 @@ import com.example.digitalhealthkids.service.AppBlockingService // 🔥 Servis I
 import com.example.digitalhealthkids.ui.navigation.AppNavGraph
 import com.example.digitalhealthkids.ui.theme.DigitalHealthKidsTheme
 import dagger.hilt.android.AndroidEntryPoint
-
+import android.content.pm.ApplicationInfo
+import android.util.Log
+import com.example.digitalhealthkids.core.util.AppUtils
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        printInstalledPackagesForPython(this)
+        // Geçici: Tüm kullanıcı uygulamalarını logcat'e bas (APP_LIST etiketi)
+        AppUtils.logInstalledUserApps(this)
         setContent {
             DigitalHealthKidsTheme {
                 Surface(
@@ -103,6 +108,20 @@ fun MainAppFlow() {
     }
 }
 
+fun printInstalledPackagesForPython(context: android.content.Context) {
+    val pm = context.packageManager
+    // Sadece kullanıcı uygulamalarını (System app olmayanları) alalım ki liste temiz olsun
+    val packages = pm.getInstalledPackages(0)
+        .filter { (it.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
+        .map { "\"${it.packageName}\"" } // Python formatına uygun tırnak içine alıyoruz
+
+    // Logcat'e Python listesi formatında basıyoruz
+    val pythonListString = packages.joinToString(separator = ", ", prefix = "[", postfix = "]")
+
+    Log.e("MOCK_DATA_GEN", "👇 AŞAĞIDAKİ SATIRI KOPYALA VE PYTHON SCRIPTINE YAPIŞTIR 👇")
+    Log.e("MOCK_DATA_GEN", pythonListString)
+    Log.e("MOCK_DATA_GEN", "👆 YUKARIDAKİ SATIRI KOPYALA 👆")
+}
 // Ortak İzin Ekranı Tasarımı
 @Composable
 fun PermissionScreen(
@@ -170,3 +189,5 @@ fun Context.isAccessibilityServiceEnabled(): Boolean {
     }
     return false
 }
+
+

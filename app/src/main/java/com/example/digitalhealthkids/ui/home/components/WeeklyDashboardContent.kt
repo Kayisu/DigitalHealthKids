@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.digitalhealthkids.domain.usage.DashboardData
 import com.example.digitalhealthkids.core.util.formatDuration
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun WeeklyDashboardContent(
@@ -21,15 +23,15 @@ fun WeeklyDashboardContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 1. Hero Kartı
         item { WeeklyHeroCard(dashboard, dailyLimit) }
 
         // 2. Grafik
         item {
-            Box(modifier = Modifier.height(220.dp)) {
+            Box(modifier = Modifier.height(260.dp)) {
                 WeeklyBarChart(
                     dailyStats = dashboard.weeklyBreakdown,
                     selectedDayIndex = selectedDay,
@@ -42,28 +44,35 @@ fun WeeklyDashboardContent(
         item {
             val stat = dashboard.weeklyBreakdown.getOrNull(selectedDay)
             if (stat != null) {
+                val dateLabel = try {
+                    LocalDate.parse(stat.date).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                } catch (e: Exception) { stat.date }
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    elevation = CardDefaults.cardElevation(1.dp)
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
-                            text = "${stat.date} Özeti",
-                            style = MaterialTheme.typography.titleMedium
+                            text = "$dateLabel Özeti",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
                             text = "Toplam Süre: ${formatDuration(stat.totalMinutes)}",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(Modifier.height(16.dp))
-                        Button(
+                        FilledTonalButton(
                             onClick = { onViewDetailsClick(selectedDay) },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) {
-                            Text("Detaylı Raporu Gör →")
+                            Text("Detaylı Raporu Gör", color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                 }
